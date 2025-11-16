@@ -1,0 +1,3 @@
+[submodule "baselines/benchmark"]
+	path = baselines/benchmark
+	url = https://github.com/tamu-engineering-research/Open-source-power-dataset
