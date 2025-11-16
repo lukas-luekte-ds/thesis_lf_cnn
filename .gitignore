@@ -1,0 +1,8 @@
+__pycache__/
+*.pt
+*.pth
+*.ckpt
+.env
+.venv/
+experiments/
+datasets/
