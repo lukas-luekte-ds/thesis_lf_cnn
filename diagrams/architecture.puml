@@ -1,0 +1,13 @@
+// example
+@startuml
+class TimeSeriesLoader {
+    +load(batch_size, shuffle, sliding_window, loc, year)
+}
+
+class ForecastingDataset {
+    +load(...)
+    -processing(file)
+}
+
+TimeSeriesLoader --> ForecastingDataset : uses
+@enduml
