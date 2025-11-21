@@ -1,4 +1,5 @@
-@startuml
+@startuml name architecture
+title dataloader architecture
 
 package "BenchmarkModel.LoadForecasting.processing" {
     class ForecastingDataset
