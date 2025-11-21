@@ -1,13 +1,24 @@
-// example
 @startuml
-class TimeSeriesLoader {
-    +load(batch_size, shuffle, sliding_window, loc, year)
+
+package "BenchmarkModel.LoadForecasting.processing" {
+    class ForecastingDataset
+}
+package "BenchmarkModel.EventClassification.processing" {
+    class ClassificationDataset
+}
+package "BenchmarkModel.SyntheticDataGeneration.processing" {
+    class GenerationDataset
+}
+package "dataloader.py" {
+    class TimeSeriesLoader {
+        +load(self, batch_size, shuffle, sliding_window=120, loc=None, year=None)
+        +__init__(task,root)
+    }
 }
 
-class ForecastingDataset {
-    +load(...)
-    -processing(file)
-}
+TimeSeriesLoader ..> ForecastingDataset : imports
+TimeSeriesLoader ..> ClassificationDataset : imports
+TimeSeriesLoader ..> GenerationDataset : imports
 
-TimeSeriesLoader --> ForecastingDataset : uses
 @enduml
+
