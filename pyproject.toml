@@ -1,0 +1,11 @@
+[project]
+name = "thesis_lf_cnn"
+version = "0.1.0"
+description = "STLF with different neural network methods (including complex weights)"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}

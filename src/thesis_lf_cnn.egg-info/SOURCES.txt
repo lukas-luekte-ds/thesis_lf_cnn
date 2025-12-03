@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+src/models/__init__.py
+src/models/mlp.py
+src/thesis_lf_cnn.egg-info/PKG-INFO
+src/thesis_lf_cnn.egg-info/SOURCES.txt
+src/thesis_lf_cnn.egg-info/dependency_links.txt
+src/thesis_lf_cnn.egg-info/top_level.txt

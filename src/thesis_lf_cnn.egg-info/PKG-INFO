@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: thesis_lf_cnn
+Version: 0.1.0
+Summary: STLF with different neural network methods (including complex weights)
+Requires-Python: >=3.10
