@@ -5,6 +5,7 @@ import subprocess
 from typing import Any, Dict
 import numpy as np
 import torch
+import yaml
 
 # setting fixed seeds to guarantee reproducability (I hope I found all needed seeds)
 def fix_seed(seed: int, deterministic: bool=True):
@@ -28,6 +29,13 @@ def rmse(y, p): return float(np.sqrt(np.mean((p - y)**2)))
 def mape(y, p, eps=1e-6):
     denom = np.clip(np.abs(y), eps, None)
     return float(np.mean(np.abs((p - y)/denom)))
+
+
+# put this to utils or somewhere else, since loading configs will be used in every model
+def load_config(path):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
 
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
