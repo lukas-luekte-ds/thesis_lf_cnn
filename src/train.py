@@ -38,9 +38,11 @@ def train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir):
         opt = torch.optim.AdamW(model.parameters(), lr=cfg["train"]["lr"],
                                 weight_decay=cfg["train"]["weight_decay"])
     else:
-        opt = torch.optim.Adam(model.parameters(), lr=cfg["train"]["lr"])
+        opt = torch.optim.Adam(model.parameters(), lr=cfg["train"]["lr"], weight_decay=cfg["train"]["weight_decay"])
 
     patience = cfg["train"]["early_stopping_patience"]
+    min_delta = cfg["train"]["early_stopping_min_delta"] 
+
     best_val = float("inf")
     wait = 0
     history = {"train_loss": [], "val_mae": []}
@@ -67,7 +69,7 @@ def train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir):
         history["train_loss"].append(train_loss)
         history["val_mae"].append(val_mae)
 
-        improved = val_mae + 1e-9 < best_val
+        improved = val_mae < (best_val - min_delta)
         if improved:
             best_val = val_mae
             wait = 0
