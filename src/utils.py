@@ -41,3 +41,24 @@ def git_hash():
         return subprocess.check_output(["git","rev-parse","HEAD"]).decode().strip()
     except Exception: 
         return "unknown"
+    
+def make_loss(cfg):
+    lt = cfg["train"]["loss_type"].lower()
+    delta = cfg["train"]["huber_delta"]
+
+    if lt == "mae":
+        def loss_fun(pred, y):
+            return (pred - y).abs().mean()
+        return loss_fun
+
+    if lt == "mse":
+        def loss_fun(pred, y):
+            return torch.nn.functional.mse_loss(pred, y)
+        return loss_fun
+
+    if lt == "huber":
+        def loss_fun(pred, y):
+            return torch.nn.functional.huber_loss(pred, y, delta=delta)
+        return loss_fun
+
+    raise ValueError(...)

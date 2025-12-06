@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Subset
-from utils import load_config, fix_seed, get_device, ensure_dir, save_json, git_hash
+from utils import load_config, fix_seed, make_loss, get_device, ensure_dir, save_json, git_hash
 from eval import eval_mae_per_target, eval_mae
 from dataloader import TimeSeriesLoader
 from models.mlp import STLFMLP
@@ -45,6 +45,7 @@ def train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir):
     wait = 0
     history = {"train_loss": [], "val_mae": []}
     os.makedirs(ckpt_dir, exist_ok=True)
+    loss_fn = make_loss(cfg)
 
     for epoch in range(1, cfg["train"]["epochs"]+1):
         model.train()
@@ -53,13 +54,7 @@ def train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir):
             x = x.to(device).float()
             y = y.to(device).float()
             pred = model(x)
-            lt = cfg["train"]["loss_type"]
-            if lt == "mae":
-                loss = (pred - y).abs().mean()
-            elif lt == "mse":
-                loss = torch.nn.functional.mse_loss(pred, y)
-            else:
-                loss = torch.nn.functional.huber_loss(pred, y, delta=cfg["train"]["huber_delta"])
+            loss = loss_fn(pred, y)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             # optional: torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)

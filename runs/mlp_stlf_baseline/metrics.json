@@ -1,5 +1,5 @@
 {
-  "git_hash": "71d8071aff260da517fce487379439453c764e32",
+  "git_hash": "80179cc7aae9c2499dd1d635b6dc3681140e1d18",
   "config": {
     "exp_name": "mlp_stlf_baseline",
     "seed": 42,
