@@ -6,6 +6,7 @@ from typing import Any, Dict
 import numpy as np
 import torch
 import yaml
+import shutil
 
 # setting fixed seeds to guarantee reproducability (I hope I found all needed seeds)
 def fix_seed(seed: int, deterministic: bool=True):
@@ -28,6 +29,11 @@ def get_device(pref: str="cuda:0"):
 def load_config(path):
     with open(path, "r") as f:
         return yaml.safe_load(f)
+
+def copy_config_file(src_config_path: str, exp_dir: str):
+    os.makedirs(exp_dir, exist_ok=True)
+    dst_path = os.path.join(exp_dir, "config_used.yaml")
+    shutil.copyfile(src_config_path, dst_path)
 
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)

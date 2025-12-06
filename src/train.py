@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Subset
-from utils import load_config, fix_seed, make_loss, get_device, ensure_dir, save_json, git_hash
+from utils import load_config,copy_config_file, fix_seed, make_loss, get_device, ensure_dir, save_json, git_hash
 from eval import eval_mae_per_target, eval_mae
 from dataloader import TimeSeriesLoader
 from models.mlp import STLFMLP
@@ -136,6 +136,7 @@ def main(cfg_path):
     exp_dir  = os.path.join(cfg["out"]["dir"], cfg["exp_name"])
     ckpt_dir = os.path.join(exp_dir, "checkpoints")
     ensure_dir(exp_dir)
+    copy_config_file(cfg_path, exp_dir)
     best_val, history = train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir)
 
     # laod the best model and not the last one

@@ -1,0 +1,37 @@
+exp_name: "mlp_stlf_baseline"
+
+seed: 42
+device: "cuda:0"          
+
+data:
+  root: "/media/lll/T9/PSML"
+  location: "CAISO_zone_1"
+  year: 2018
+  sliding_window: 120
+  batch_size: 512
+  shuffle: false           
+  val_ratio: 0.1         
+
+model:
+  input_dim: 1331
+  hidden_sizes: [512, 256, 128]
+  dropout: 0.1
+  out_dim: 6
+  use_layernorm: true
+  use_input_norm: true
+  activation: "gelu"
+
+train:
+  epochs: 50
+  lr: 0.001
+  optimizer: "adamw"      
+  weight_decay: 0.0
+  loss_type: "mae"        
+  huber_delta: 1.0
+  early_stopping_patience: 7
+  early_stopping_min_delta: 0.0001
+  num_workers: 4
+  pin_memory: false
+
+out:
+  dir: "runs"
