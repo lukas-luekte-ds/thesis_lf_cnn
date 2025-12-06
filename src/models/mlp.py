@@ -1,10 +1,7 @@
 # model.py
-from typing import List, Literal, Tuple
+from typing import List, Literal
 import torch
 import torch.nn as nn
-
-# using Literal enables only the given parameters
-LossType = Literal["mae", "mse", "huber"] # maybe add MAPE?
 
 class InputNormalizer(nn.Module):
     """
