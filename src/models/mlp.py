@@ -1,5 +1,5 @@
 # model.py
-from typing import List, Literal, Tuple, Optional
+from typing import List, Literal, Tuple
 import torch
 import torch.nn as nn
 
@@ -91,24 +91,4 @@ class STLFMLP(nn.Module):
         if self.use_input_norm:
             x = self.in_norm(x)
         return self.net(x)
-
-def compute_loss(
-    self,
-    batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-    loss_type: Literal["mae", "mse", "huber"] = "mae",
-    huber_delta: float = 1.0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    x, y, flag = batch 
-    pred = self.forward(x)
-
-    if loss_type == "mae":
-        loss = (pred - y).abs().mean()
-    elif loss_type == "mse":
-        loss = torch.nn.functional.mse_loss(pred, y)
-    elif loss_type == "huber":
-        loss = torch.nn.functional.huber_loss(pred, y, delta=huber_delta)
-    else:
-        raise ValueError(f"unkown loss_type: {loss_type}")
-
-    return loss, pred
 

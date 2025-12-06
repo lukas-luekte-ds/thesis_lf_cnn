@@ -2,7 +2,6 @@ import torch
 import numpy as np
 
 # This is to evaluate the results 
-# this should be in eval.py or utils.py later and maybe implement different eval strategies and encapsulate them as eval(mae, ...)
 @torch.no_grad()
 def eval_mae(model, loader, device):
     model.eval()
