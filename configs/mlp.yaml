@@ -30,7 +30,7 @@ train:
   huber_delta: 1.0
   early_stopping_patience: 7
   num_workers: 4
-  pin_memory: true
+  pin_memory: false
 
 out:
   dir: "runs"

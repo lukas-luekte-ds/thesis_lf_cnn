@@ -9,7 +9,7 @@ import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Subset
 from utils import load_config, fix_seed, get_device, ensure_dir, save_json, git_hash
-from eval import eval_mae, eval_mae_per_target
+from eval import eval_mae_per_target, eval_mae
 from dataloader import TimeSeriesLoader
 from models.mlp import STLFMLP
 
@@ -49,7 +49,7 @@ def train_loop(model, train_loader, val_loader, device, cfg, ckpt_dir):
     for epoch in range(1, cfg["train"]["epochs"]+1):
         model.train()
         batch_losses = []
-        for x, y, flag in train_loader:
+        for x, y, _ in train_loader:
             x = x.to(device).float()
             y = y.to(device).float()
             pred = model(x)

@@ -8,6 +8,7 @@ ARTIFACTS_DIR   ?= artifacts
 # Matplotlib headless (to enable terminal only setups), setting deterministic cuda kernels 
 export MPLBACKEND=Agg
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
+export PYTHONUNBUFFERED=1
 
 .PHONY: help env submodules install-baselines install-core install \
         verify-env train eval freeze export-env remove-artifacts veryclean
@@ -53,16 +54,16 @@ verify-env:
 
 # base 
 train:
-	conda run -n $(ENV_NAME) $(PYTHON) train.py --config $(CONFIG)
+	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) src/train.py --config $(CONFIG)
 
 eval:
-	conda run -n $(ENV_NAME) $(PYTHON) eval.py --config $(CONFIG)
+	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) src/eval.py --config $(CONFIG)
 
 # reproducibility
 freeze:
 	mkdir -p $(ARTIFACTS_DIR)
-	conda run -n $(ENV_NAME) conda list --explicit > $(ARTIFACTS_DIR)/conda-explicit.txt
-	conda run -n $(ENV_NAME) $(PYTHON) -m pip freeze > $(ARTIFACTS_DIR)/pip-freeze.txt
+	conda run -n $(ENV_NAME) --no-capture-output conda list --explicit > $(ARTIFACTS_DIR)/conda-explicit.txt
+	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) -m pip freeze > $(ARTIFACTS_DIR)/pip-freeze.txt
 	git rev-parse --short HEAD > $(ARTIFACTS_DIR)/git-commit.txt
 	- git -C $(SUBMODULE_PATH) rev-parse --short HEAD > $(ARTIFACTS_DIR)/baselines-commit.txt || true
 
