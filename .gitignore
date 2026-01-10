@@ -1,6 +1,7 @@
 __pycache__/
 *.pt
 *.pth
+.ipynb_checkpoints/
 *.ckpt
 .env
 .venv/

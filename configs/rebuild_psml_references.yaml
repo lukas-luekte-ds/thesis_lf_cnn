@@ -1,0 +1,23 @@
+benchmark:
+  # Git-Repo-Root Submodule
+  repo_root: baselines/benchmark
+
+  # model scripts
+  workdir: baselines/benchmark/Code/BenchmarkModel/LoadForecasting/models
+
+  # reference output
+  logs_root: baselines/benchmark/Code/BenchmarkModel/LoadForecasting/logs
+
+  # conda env for the submodule
+  conda_env: psml
+
+references:
+  # Hier landet dein frozen snapshot im Hauptrepo
+  out_root: references/psml_forecasting
+
+models:
+  - reference_id: cnn_ref_v1
+    entrypoint: cnn.py
+    args: ["--gpu", "1"]
+    log_subdir: "cnn"
+

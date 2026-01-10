@@ -1,7 +1,9 @@
 # Config
-ENV_NAME        ?= dl
-PYTHON          ?= python
+ENV_MAIN ?= dl
+ENV_BENCH ?= psml
+PYTHON          ?= python3
 CONFIG          ?= configs/mlp.yaml
+REFS_CONFIG     ?= configs/rebuild_psml_references.yaml
 SUBMODULE_PATH  ?= baselines/benchmark
 ARTIFACTS_DIR   ?= artifacts
 
@@ -11,7 +13,7 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export PYTHONUNBUFFERED=1
 
 .PHONY: help env submodules install-baselines install-core install \
-        verify-env train eval freeze export-env remove-artifacts veryclean
+        verify-env train eval refs get-refs freeze export-env remove-artifacts veryclean
 
 help:
 	@echo "Targets:"
@@ -30,21 +32,21 @@ help:
 
 # environment and installation
 env:
-	conda env update -n $(ENV_NAME) -f environment.yml --prune
+	conda env update -n $(ENV_MAIN) -f environment.yml --prune
 
 submodules:
 	git submodule update --init --recursive
 
 install-baselines: submodules
-	conda run -n $(ENV_NAME) $(PYTHON) -m pip install -e $(SUBMODULE_PATH)
+	conda run -n $(ENV_BENCH) $(PYTHON) -m pip install -e $(SUBMODULE_PATH)
 
 install-core:
-	conda run -n $(ENV_NAME) $(PYTHON) -m pip install -e .
+	conda run -n $(ENV_MAIN) $(PYTHON) -m pip install -e .
 
 install: env install-baselines install-core
 
 verify-env:
-	conda run -n $(ENV_NAME) $(PYTHON) - <<'PY'
+	conda run -n $(ENV_MAIN) $(PYTHON) - <<'PY'
 	import sys, torch
 	print("Python:", sys.version.split()[0])
 	print("Torch:", getattr(torch, "__version__", None))
@@ -54,23 +56,26 @@ verify-env:
 
 # base 
 train:
-	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) src/train.py --config $(CONFIG)
+	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) src/train.py --config $(CONFIG)
 
 eval:
-	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) src/eval.py --config $(CONFIG)
+	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) src/eval.py --config $(CONFIG)
 
 # reproducibility
 freeze:
 	mkdir -p $(ARTIFACTS_DIR)
-	conda run -n $(ENV_NAME) --no-capture-output conda list --explicit > $(ARTIFACTS_DIR)/conda-explicit.txt
-	conda run -n $(ENV_NAME) --no-capture-output $(PYTHON) -m pip freeze > $(ARTIFACTS_DIR)/pip-freeze.txt
+	conda run -n $(ENV_MAIN) --no-capture-output conda list --explicit > $(ARTIFACTS_DIR)/conda-explicit.txt
+	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) -m pip freeze > $(ARTIFACTS_DIR)/pip-freeze.txt
 	git rev-parse --short HEAD > $(ARTIFACTS_DIR)/git-commit.txt
 	- git -C $(SUBMODULE_PATH) rev-parse --short HEAD > $(ARTIFACTS_DIR)/baselines-commit.txt || true
 
 # updates the environment to make sure it can be reproduced later
 export-env:
-	conda env export --from-history -n $(ENV_NAME) > environment.yml
+	conda env export --from-history -n $(ENV_MAIN) > environment.yml
 
+# rebuilds the references from psml which are set in the meta config and saves them as new references
+get-refs:
+    conda run -n $(ENV_BENCH) --no-capture-output $(PYTHON) references/psml-benchmark/rebuild_psml_references.py --config $(REFS_CONFIG) --overwrite
 
 # clean up
 remove-artifacts:
