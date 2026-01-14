@@ -21,3 +21,9 @@ models:
     args: ["--gpu", "1"]
     log_subdir: "cnn"
 
+models:
+  - reference_id: navie_ref_v1
+    entrypoint: naive.py
+    args: ["--gpu", "1"]
+    log_subdir: "naive"
+

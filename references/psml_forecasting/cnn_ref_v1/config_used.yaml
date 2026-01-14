@@ -1,0 +1,51 @@
+exp_params:
+  batch_size:
+  - 50
+  data_folder: /media/lll/T9/PSML/processed_dataset/forecasting
+  external_features:
+  - month_day
+  - weekday
+  - holiday
+  - DHI
+  - DNI
+  - GHI
+  - Dew Point
+  - Solar Zenith Angle
+  - Wind Speed
+  - Relative Humidity
+  - Temperature
+  last_version: 4
+  learning_rate:
+  - 0.01
+  normalization:
+  - minmax
+  num_workers: 0
+  prediction_interval: 0.95
+  prediction_path: ./../logs/cnn/version_3
+  selection_metric: RMSE
+  sliding_window:
+  - 120
+  test_flag: false
+  train_valid_ratio: 0.9
+logging_params:
+  manual_seed: 0
+  name: cnn
+  save_dir: ./../logs
+model_params:
+  dropout:
+  - 0.1
+  hidden_layers:
+  - - 32
+    - 64
+  kernel_size:
+  - - 4
+    - 4
+  model_name: cnn
+  pooling:
+  - max
+  stride:
+  - - 2
+    - 2
+trainer_params:
+  gpus: 1
+  max_epochs: 2

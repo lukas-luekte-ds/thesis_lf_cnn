@@ -75,7 +75,7 @@ export-env:
 
 # rebuilds the references from psml which are set in the meta config and saves them as new references
 get-refs:
-    conda run -n $(ENV_BENCH) --no-capture-output $(PYTHON) references/psml-benchmark/rebuild_psml_references.py --config $(REFS_CONFIG) --overwrite
+	conda run -n $(ENV_BENCH) --no-capture-output $(PYTHON) references/psml-benchmark/rebuild_psml_references.py --config $(REFS_CONFIG) --overwrite
 
 # clean up
 remove-artifacts:
