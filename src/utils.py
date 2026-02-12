@@ -50,7 +50,6 @@ def git_hash():
     
 def make_loss(cfg):
     lt = cfg["train"]["loss_type"].lower()
-    delta = cfg["train"]["huber_delta"]
 
     if lt == "mae":
         def loss_fun(pred, y):
@@ -64,6 +63,7 @@ def make_loss(cfg):
 
     if lt == "huber":
         def loss_fun(pred, y):
+            delta = cfg["train"]["huber_delta"]
             return torch.nn.functional.huber_loss(pred, y, delta=delta)
         return loss_fun
 

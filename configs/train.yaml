@@ -1,0 +1,24 @@
+exp_name: mlp_run2
+seed: 0
+device: cuda
+
+out:
+  dir: runs
+
+data:
+  root: /media/lll/T9/PSML
+  batch_size: 32
+  shuffle: false
+  val_ratio: 0.2
+
+train:
+  epochs: 50
+  optimizer: adamw
+  lr: 0.001
+  weight_decay: 0.0
+  early_stopping_patience: 10
+  early_stopping_min_delta: 0.0
+  loss_type: mae
+  huber_delta: 1.0
+
+model_ref: configs/mlp.yaml

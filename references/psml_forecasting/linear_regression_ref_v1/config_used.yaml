@@ -1,0 +1,38 @@
+exp_params:
+  data_folder: /media/lll/T9/PSML/processed_dataset/forecasting
+  external_feature_flag:
+  - true
+  - false
+  external_features:
+  - month_day
+  - weekday
+  - holiday
+  - DHI
+  - DNI
+  - GHI
+  - Dew Point
+  - Solar Zenith Angle
+  - Wind Speed
+  - Relative Humidity
+  - Temperature
+  last_version: 16
+  prediction_interval: 0.95
+  prediction_path: ./../logs/linear_regression/version_4
+  selection_metric: RMSE
+  sliding_window:
+  - 120
+  test_flag: false
+  train_valid_ratio: 2000
+  variate:
+  - uni
+  - multi
+logging_params:
+  manual_seed: 0
+  name: linear_regression
+  save_dir: ./../logs
+model_params:
+  model_name: linear_regression
+  normalize:
+  - false
+  - true
+trainer_params: null

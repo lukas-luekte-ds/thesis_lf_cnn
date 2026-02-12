@@ -1,0 +1,5 @@
+schema_version: 1
+reference_id: naive_ref_v1
+created_at_utc: '2026-02-02T20:00:40Z'
+benchmark_commit: 2726ffcac0f41a796f3ca86a8517a73244dff5fd
+picked_version_dir: version_3

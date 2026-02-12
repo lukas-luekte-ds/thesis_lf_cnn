@@ -2,7 +2,8 @@
 ENV_MAIN ?= dl
 ENV_BENCH ?= psml
 PYTHON          ?= python3
-CONFIG          ?= configs/mlp.yaml
+CONFIG          ?= configs/train.yaml
+EVAL_CONFIG     ?= configs/eval.yaml
 REFS_CONFIG     ?= configs/rebuild_psml_references.yaml
 SUBMODULE_PATH  ?= baselines/benchmark
 ARTIFACTS_DIR   ?= artifacts
@@ -59,7 +60,10 @@ train:
 	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) src/train.py --config $(CONFIG)
 
 eval:
-	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) src/eval.py --config $(CONFIG)
+	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) \
+		src/evaluate_model.py \
+		--config $(CONFIG) \
+		--eval_config $(EVAL_CONFIG)
 
 # reproducibility
 freeze:
@@ -75,7 +79,7 @@ export-env:
 
 # rebuilds the references from psml which are set in the meta config and saves them as new references
 get-refs:
-	conda run -n $(ENV_BENCH) --no-capture-output $(PYTHON) references/psml-benchmark/rebuild_psml_references.py --config $(REFS_CONFIG) --overwrite
+	conda run -n $(ENV_BENCH) --no-capture-output $(PYTHON) references/psml-benchmark-scripts/rebuild_psml_references.py --config $(REFS_CONFIG) --overwrite
 
 # clean up
 remove-artifacts:

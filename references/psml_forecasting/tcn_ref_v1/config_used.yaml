@@ -1,0 +1,50 @@
+exp_params:
+  batch_size:
+  - 50
+  data_folder: /media/lll/T9/PSML/processed_dataset/forecasting
+  external_features:
+  - month_day
+  - weekday
+  - holiday
+  - DHI
+  - DNI
+  - GHI
+  - Dew Point
+  - Solar Zenith Angle
+  - Wind Speed
+  - Relative Humidity
+  - Temperature
+  last_version: 23
+  learning_rate:
+  - 0.01
+  normalization:
+  - minmax
+  num_workers: 0
+  prediction_interval: 0.95
+  prediction_path: ./../logs/tcn/version_2
+  selection_metric: RMSE
+  sliding_window:
+  - 120
+  test_flag: false
+  train_valid_ratio: 0.9
+logging_params:
+  manual_seed: 0
+  name: tcn
+  save_dir: ./../logs
+model_params:
+  classification_token:
+  - first
+  - last
+  - all
+  dropout:
+  - 0.0
+  kernel_size:
+  - 3
+  levels:
+  - 4
+  model_name: tcn
+  nhid:
+  - 600
+trainer_params:
+  gpus: 1
+  max_epochs: 2

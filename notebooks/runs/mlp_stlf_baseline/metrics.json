@@ -1,5 +1,5 @@
 {
-  "git_hash": "71d8071aff260da517fce487379439453c764e32",
+  "git_hash": "ac135ad2a960d226b61dfac99e68aa58cb9e176c",
   "config": {
     "exp_name": "mlp_stlf_baseline",
     "seed": 42,
@@ -34,6 +34,7 @@
       "loss_type": "mae",
       "huber_delta": 1.0,
       "early_stopping_patience": 7,
+      "early_stopping_min_delta": 0.0001,
       "num_workers": 4,
       "pin_memory": false
     },

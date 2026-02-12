@@ -1,0 +1,17 @@
+exp_params:
+  data_folder: /media/lll/T9/PSML/processed_dataset/forecasting
+  last_version: 2
+  prediction_interval: 0.95
+  prediction_path: ./../logs/exponential_smoothing/version_4
+  selection_metric: RMSE
+  sliding_window:
+  - 1440
+  test_flag: false
+  train_valid_ratio: 0.99
+logging_params:
+  manual_seed: 0
+  name: exponential_smoothing
+  save_dir: ./../logs
+model_params:
+  model_name: exponential_smoothing
+trainer_params: null

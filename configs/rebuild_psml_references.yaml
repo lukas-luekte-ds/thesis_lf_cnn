@@ -1,29 +1,53 @@
 benchmark:
-  # Git-Repo-Root Submodule
   repo_root: baselines/benchmark
 
-  # model scripts
   workdir: baselines/benchmark/Code/BenchmarkModel/LoadForecasting/models
 
-  # reference output
   logs_root: baselines/benchmark/Code/BenchmarkModel/LoadForecasting/logs
 
-  # conda env for the submodule
   conda_env: psml
 
 references:
-  # Hier landet dein frozen snapshot im Hauptrepo
   out_root: references/psml_forecasting
 
-models:
-  - reference_id: cnn_ref_v1
-    entrypoint: cnn.py
-    args: ["--gpu", "1"]
-    log_subdir: "cnn"
+#models:
+#  - reference_id: cnn_ref_v1
+#    entrypoint: cnn.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "cnn"
+
+#models:
+#  - reference_id: naive_ref_v1
+#    entrypoint: naive.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "naive"
 
 models:
-  - reference_id: navie_ref_v1
-    entrypoint: naive.py
-    args: ["--gpu", "1"]
-    log_subdir: "naive"
+  - reference_id: exponential_smoothing_ref_v1
+    entrypoint: exponential_smoothing.py
+    args: ["--gpu", "1", "--num_files", "67"]
+    log_subdir: "exponential_smoothing"
 
+#models:
+#  - reference_id: linear_regression_ref_v1
+#    entrypoint: linear_regression.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "linear_regression"
+
+#models:
+#  - reference_id: gradient_boosting_ref_v1
+#    entrypoint: gradient_boosting.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "gradient_boosting"
+
+#models:
+#  - reference_id: tcn_ref_v1
+#    entrypoint: tcn.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "tcn"
+
+#models:
+#  - reference_id: rnn_ref_v1
+#    entrypoint: rnn.py
+#    args: ["--gpu", "1", "--num_files", "67"]
+#    log_subdir: "RNN"

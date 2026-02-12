@@ -21,7 +21,7 @@ exp_params:
   - minmax
   num_workers: 0
   prediction_interval: 0.95
-  prediction_path: ./../logs/cnn/version_3
+  prediction_path: ./../logs/cnn/version_1
   selection_metric: RMSE
   sliding_window:
   - 120
