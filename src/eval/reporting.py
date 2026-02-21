@@ -44,7 +44,10 @@ def auto_discover_compare_summaries(
         items.append({"name": f"ours:{eval_root.name}", "summary": str(ours)})
 
     # include references
-    ref_root_str = str(eval_cfg.get("references_root", "references/psml_forecasting"))
+    test_cfg = eval_cfg.get("test", {})
+    if not isinstance(test_cfg, dict):
+        test_cfg = {}
+    ref_root_str = str(test_cfg.get("references_root", "references/psml_forecasting"))
     ref_root = resolve_path(ref_root_str, eval_config_dir)
     if ref_root.exists():
         for p in sorted(ref_root.glob("**/summary.json")):
@@ -52,13 +55,13 @@ def auto_discover_compare_summaries(
             items.append({"name": f"ref:{name}", "summary": str(p)})
 
     # optional filter
-    filt = eval_cfg.get("compare_filter")
+    filt = test_cfg.get("compare_filter")
     if filt:
         rx = re.compile(str(filt))
         items = [it for it in items if rx.search(it["name"])]
 
     # optional max (deterministic)
-    compare_max = eval_cfg.get("compare_max", None)
+    compare_max = test_cfg.get("compare_max", None)
     if compare_max is not None:
         try:
             k = int(compare_max)
@@ -91,7 +94,11 @@ def get_compare_list(
     """
     base_dir = eval_path.parent
 
-    compare = eval_cfg.get("compare", None)
+    test_cfg = eval_cfg.get("test", {})
+    if not isinstance(test_cfg, dict):
+        test_cfg = {}
+
+    compare = test_cfg.get("compare_test", None)
     if isinstance(compare, list) and len(compare) > 0:
         out = []
         for item in compare:
@@ -180,6 +187,89 @@ def _fmt(x: Any, ndigits: int = 6) -> str:
             return "NaN"
         return f"{x:.{ndigits}f}"
     return str(x)
+
+
+##---------- val------------------
+def get_val_compare_list(*, eval_cfg: Dict[str, Any], eval_path: Path) -> List[Dict[str, str]]:
+    base_dir = eval_path.parent
+    val_cfg = eval_cfg.get("val", {})
+    if not isinstance(val_cfg, dict):
+        return []
+    compare = val_cfg.get("compare_val", None)
+    if not isinstance(compare, list) or not compare:
+        return []
+
+    out = []
+    for item in compare:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        p_str = item.get("val")
+        if not name or not p_str:
+            continue
+        p = resolve_path(str(p_str), base_dir)
+        out.append({"name": name, "val": str(p)})
+    return out
+
+def plot_val_compare_overall(models: List[Dict[str, Any]], out_png: Path, metric: str) -> None:
+    rows = []
+    for m in models:
+        v = m["val_metrics"].get("metrics", {}).get(metric)
+        try:
+            v = float(v)
+        except Exception:
+            continue
+        rows.append((m["name"], v))
+
+    if not rows:
+        return
+
+    # simple: ascending for all metrics
+    rows = sorted(rows, key=lambda t: t[1])
+    names = [r[0] for r in rows]
+    vals = [r[1] for r in rows]
+
+    plt.figure()
+    plt.bar(names, vals)
+    plt.xticks(rotation=30, ha="right")
+    if metric.lower() == "me":
+        plt.axhline(0.0, linewidth=1)
+        plt.ylabel("ME = mean(y_pred - y_true)")
+    else:
+        plt.ylabel(metric.upper())
+    plt.title(f"Val model comparison (overall): {metric.upper()}")
+    plt.tight_layout()
+    ensure_dir(out_png.parent)
+    plt.savefig(out_png, dpi=150)
+    plt.close()
+
+def make_val_compare_figures(*, eval_root: Path, eval_cfg: Dict[str, Any], eval_path: Path, overwrite: bool) -> List[Path]:
+    fig_dir = eval_root / "val" / "figures"
+    ensure_dir(fig_dir)
+
+    compare_list = get_val_compare_list(eval_cfg=eval_cfg, eval_path=eval_path)
+    models = []
+    for item in compare_list:
+        p = Path(item["val"]).expanduser().resolve()
+        if not p.exists():
+            print(f"[warn] compare val missing: {p}")
+            continue
+        vm = load_json(p)
+        models.append({"name": item["name"], "val_metrics": vm, "path": p})
+
+    if len(models) < 1:
+        return []
+
+    outs: List[Path] = []
+    for metric in ["rmse", "mae", "me"]:
+        out_png = fig_dir / f"compare_val_overall_{metric}.png"
+        if out_png.exists() and not overwrite:
+            outs.append(out_png)
+            continue
+        plot_val_compare_overall(models, out_png, metric)
+        outs.append(out_png)
+
+    return outs
 
 def render_val_section(val_metrics: Dict[str, Any]) -> str:
     lines: List[str] = []
@@ -358,14 +448,22 @@ def build_report_md(
 
         # Only generate val figures in val/both mode
         if mode in ("val", "both"):
-            val_figs = make_val_figures(
-                eval_root=eval_root,
-                overwrite=overwrite,
-                top_k=int(eval_cfg.get("val_top_k", 20)),
-            )
+            val_figs = make_val_figures(eval_root=eval_root, overwrite=overwrite, top_k=int(eval_cfg.get("val_top_k", 20)))
             if val_figs:
                 lines.append("### Validation figures\n")
                 for p in val_figs:
+                    rel = p.relative_to(eval_root)
+                    lines.append(f"![]({rel.as_posix()})")
+                lines.append("")
+            val_compare_figs = make_val_compare_figures(
+                eval_root=eval_root,
+                eval_cfg=eval_cfg,
+                eval_path=eval_path,
+                overwrite=overwrite,
+            )
+            if val_compare_figs:
+                lines.append("### Validation model comparison figures\n")
+                for p in val_compare_figs:
                     rel = p.relative_to(eval_root)
                     lines.append(f"![]({rel.as_posix()})")
                 lines.append("")
@@ -384,11 +482,13 @@ def build_report_md(
             test_figs = make_test_figures(eval_root=eval_root, eval_cfg=eval_cfg, eval_path=eval_path, overwrite=overwrite)
             if test_figs:
                 lines.append("### Test model comparison figures\n")
-                lines.append(f"- compare_max: `{eval_cfg.get('compare_max', 'None')}`")
-                lines.append(f"- references_root: `{eval_cfg.get('references_root', 'references/psml_forecasting')}`")
-                if eval_cfg.get("compare_filter"):
-                    lines.append(f"- compare_filter: `{eval_cfg.get('compare_filter')}`")
-                lines.append("")
+                test_cfg = eval_cfg.get("test", {})
+                if not isinstance(test_cfg, dict):
+                    test_cfg = {}
+                lines.append(f"- compare_max: `{test_cfg.get('compare_max', 'None')}`")
+                lines.append(f"- references_root: `{test_cfg.get('references_root', 'references/psml_forecasting')}`")
+                if test_cfg.get("compare_filter"):
+                    lines.append(f"- compare_filter: `{test_cfg.get('compare_filter')}`")
                 for p in test_figs:
                     rel = p.relative_to(eval_root)
                     lines.append(f"![]({rel.as_posix()})")

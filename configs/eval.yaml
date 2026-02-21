@@ -1,5 +1,5 @@
 eval:
-  mode: test            # val | test
+  mode: val            # val | test
   tag: evaluation      # runs/<exp>/<exp>_evaluation/  (oder run_dir/eval/<tag>/)
   overwrite: true
   output_dims: ["yl_t+60","yl_t+1440","yw_t+5","yw_t+30","ys_t+5","ys_t+30"]
@@ -7,9 +7,12 @@ eval:
   val:
     metrics: ["mae", "rmse", "me"]  
     per_dim: true
+    compare_max: 5
     compare_val:
       - name: "ours:mlp_run2"
-        summary: "../runs/mlp_run2/mlp_run2_evaluation/test/summary.json"
+        val: "../runs/mlp_run2/mlp_run2_evaluation/val/val_metrics.json"
+      - name: "ours:mlp_run1"
+        val: "../runs/mlp_run1/mlp_run1_evaluation/val/val_metrics.json"
 
   test:
     # settings for PSML evaluator call & csv export
