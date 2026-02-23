@@ -2,75 +2,7 @@ from typing import Dict, Any, List
 from pathlib import Path
 from .io import load_json, ensure_dir
 import matplotlib.pyplot as plt
-import re
 from .io import write_text
-
-def plot_model_comparison_overall(models: List[Dict[str, Any]], out_png: Path, metric: str) -> None:
-    names = [m["name"] for m in models]
-    vals = [float(m["agg"]["overall"].get(metric, float("nan"))) for m in models]
-
-    plt.figure()
-    plt.bar(names, vals)
-    plt.xticks(rotation=30, ha="right")
-    plt.ylabel(metric)
-    plt.title(f"Model comparison (overall): {metric}")
-    plt.tight_layout()
-    ensure_dir(out_png.parent)
-    plt.savefig(out_png, dpi=150)
-    plt.close()
-
-def auto_discover_compare_summaries(
-    *,
-    eval_root: Path,
-    eval_cfg: Dict[str, Any],
-    eval_config_dir: Path,
-) -> List[Dict[str, str]]:
-    """
-    If eval.compare is empty/missing:
-      - include current run's test/summary.json if exists
-      - include references summaries: references_root/**/summary.json
-    Names:
-      - ours:<exp_tag_dirname>
-      - ref:<foldername>
-    Optional:
-      - compare_filter: regex string applied to name (after prefix)
-      - compare_max: int maximum number of models (after filtering), deterministic order
-    """
-    items: List[Dict[str, str]] = []
-
-    # include current run
-    ours = eval_root / "test" / "summary.json"
-    if ours.exists():
-        items.append({"name": f"ours:{eval_root.name}", "summary": str(ours)})
-
-    # include references
-    test_cfg = eval_cfg.get("test", {})
-    if not isinstance(test_cfg, dict):
-        test_cfg = {}
-    ref_root_str = str(test_cfg.get("references_root", "references/psml_forecasting"))
-    ref_root = resolve_path(ref_root_str, eval_config_dir)
-    if ref_root.exists():
-        for p in sorted(ref_root.glob("**/summary.json")):
-            name = p.parent.name
-            items.append({"name": f"ref:{name}", "summary": str(p)})
-
-    # optional filter
-    filt = test_cfg.get("compare_filter")
-    if filt:
-        rx = re.compile(str(filt))
-        items = [it for it in items if rx.search(it["name"])]
-
-    # optional max (deterministic)
-    compare_max = test_cfg.get("compare_max", None)
-    if compare_max is not None:
-        try:
-            k = int(compare_max)
-            if k > 0:
-                items = items[:k]
-        except Exception:
-            pass
-
-    return items
 
 def resolve_path(path_str: str, base_dir: Path) -> Path:
     """Resolve path_str. If relative, resolve relative to base_dir."""
@@ -79,41 +11,6 @@ def resolve_path(path_str: str, base_dir: Path) -> Path:
         p = (base_dir / p)
     return p.resolve()
 
-def get_compare_list(
-    *,
-    eval_root: Path,
-    eval_cfg: Dict[str, Any],
-    eval_path: Path,
-) -> List[Dict[str, str]]:
-    """
-    Returns compare list.
-    Priority:
-      - if eval_cfg.compare is non-empty -> use it (resolve paths)
-      - else -> auto-discover (current + references)
-    Also applies compare_max/filter to auto-discovery.
-    """
-    base_dir = eval_path.parent
-
-    test_cfg = eval_cfg.get("test", {})
-    if not isinstance(test_cfg, dict):
-        test_cfg = {}
-
-    compare = test_cfg.get("compare_test", None)
-    if isinstance(compare, list) and len(compare) > 0:
-        out = []
-        for item in compare:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name", "")).strip()
-            summary_p = item.get("summary")
-            if not name or not summary_p:
-                continue
-            p = resolve_path(str(summary_p), base_dir)
-            out.append({"name": name, "summary": str(p)})
-        return out
-
-    return auto_discover_compare_summaries(eval_root=eval_root, eval_cfg=eval_cfg, eval_config_dir=base_dir)
-
 def make_test_figures(
     *,
     eval_root: Path,
@@ -121,28 +18,25 @@ def make_test_figures(
     eval_path: Path,
     overwrite: bool,
 ) -> List[Path]:
-    """
-    Creates comparison plots under eval_root/test/figures.
-    Uses eval.compare if provided; otherwise auto-discovers.
-    """
     fig_dir = eval_root / "test" / "figures"
     ensure_dir(fig_dir)
 
-    compare_list = get_compare_list(eval_root=eval_root, eval_cfg=eval_cfg, eval_path=eval_path)
-    models = []
-
-    for item in compare_list:
-        name = item["name"]
-        p = Path(item["summary"]).expanduser().resolve()
-        if not p.exists():
-            print(f"[warn] compare summary missing: {p}")
-            continue
-        summary = load_json(p)
-        agg = aggregate_psml_summary(summary)
-        models.append({"name": name, "agg": agg, "path": p})
-
-    if len(models) < 1:
+    base_dir = eval_path.parent
+    test_cfg = eval_cfg.get("test", {})
+    if not isinstance(test_cfg, dict):
         return []
+
+    compare = test_cfg.get("compare", [])
+    if not isinstance(compare, list) or not compare:
+        return []
+
+    items = load_compare_items(compare=compare, base_dir=base_dir, warn_prefix="compare test")
+    if len(items) < 1:
+        return []
+
+    # preprocess: PSML summary -> aggregated
+    for it in items:
+        it["data"] = aggregate_psml_summary(it["data"])
 
     outs: List[Path] = []
     for metric in ["RMSE", "MAE", "MSIS", "MAPE"]:
@@ -150,7 +44,15 @@ def make_test_figures(
         if out_png.exists() and not overwrite:
             outs.append(out_png)
             continue
-        plot_model_comparison_overall(models, out_png, metric)
+        plot_compare_overall(
+            items,
+            out_png,
+            metric=metric,
+            getter=get_test_metric,
+            ylabel=metric,
+            title=f"Test model comparison (overall): {metric}",
+            zero_line=False,
+        )
         outs.append(out_png)
 
     return outs
@@ -190,74 +92,28 @@ def _fmt(x: Any, ndigits: int = 6) -> str:
 
 
 ##---------- val------------------
-def get_val_compare_list(*, eval_cfg: Dict[str, Any], eval_path: Path) -> List[Dict[str, str]]:
+
+def make_val_compare_figures(
+    *,
+    eval_root: Path,
+    eval_cfg: Dict[str, Any],
+    eval_path: Path,
+    overwrite: bool,
+) -> List[Path]:
+    fig_dir = eval_root / "val" / "figures"
+    ensure_dir(fig_dir)
+
     base_dir = eval_path.parent
     val_cfg = eval_cfg.get("val", {})
     if not isinstance(val_cfg, dict):
         return []
-    compare = val_cfg.get("compare_val", None)
+
+    compare = val_cfg.get("compare", [])
     if not isinstance(compare, list) or not compare:
         return []
 
-    out = []
-    for item in compare:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name", "")).strip()
-        p_str = item.get("val")
-        if not name or not p_str:
-            continue
-        p = resolve_path(str(p_str), base_dir)
-        out.append({"name": name, "val": str(p)})
-    return out
-
-def plot_val_compare_overall(models: List[Dict[str, Any]], out_png: Path, metric: str) -> None:
-    rows = []
-    for m in models:
-        v = m["val_metrics"].get("metrics", {}).get(metric)
-        try:
-            v = float(v)
-        except Exception:
-            continue
-        rows.append((m["name"], v))
-
-    if not rows:
-        return
-
-    # simple: ascending for all metrics
-    rows = sorted(rows, key=lambda t: t[1])
-    names = [r[0] for r in rows]
-    vals = [r[1] for r in rows]
-
-    plt.figure()
-    plt.bar(names, vals)
-    plt.xticks(rotation=30, ha="right")
-    if metric.lower() == "me":
-        plt.axhline(0.0, linewidth=1)
-        plt.ylabel("ME = mean(y_pred - y_true)")
-    else:
-        plt.ylabel(metric.upper())
-    plt.title(f"Val model comparison (overall): {metric.upper()}")
-    plt.tight_layout()
-    ensure_dir(out_png.parent)
-    plt.savefig(out_png, dpi=150)
-    plt.close()
-
-def make_val_compare_figures(*, eval_root: Path, eval_cfg: Dict[str, Any], eval_path: Path, overwrite: bool) -> List[Path]:
-    fig_dir = eval_root / "val" / "figures"
-    ensure_dir(fig_dir)
-
-    compare_list = get_val_compare_list(eval_cfg=eval_cfg, eval_path=eval_path)
-    models = []
-    for item in compare_list:
-        p = Path(item["val"]).expanduser().resolve()
-        if not p.exists():
-            print(f"[warn] compare val missing: {p}")
-            continue
-        vm = load_json(p)
-        models.append({"name": item["name"], "val_metrics": vm, "path": p})
-
-    if len(models) < 1:
+    items = load_compare_items(compare=compare, base_dir=base_dir, warn_prefix="compare val")
+    if len(items) < 1:
         return []
 
     outs: List[Path] = []
@@ -266,7 +122,15 @@ def make_val_compare_figures(*, eval_root: Path, eval_cfg: Dict[str, Any], eval_
         if out_png.exists() and not overwrite:
             outs.append(out_png)
             continue
-        plot_val_compare_overall(models, out_png, metric)
+        plot_compare_overall(
+            items,
+            out_png,
+            metric=metric,
+            getter=get_val_metric,
+            ylabel=("ME = mean(y_pred - y_true)" if metric == "me" else metric.upper()),
+            title=f"Val model comparison (overall): {metric.upper()}",
+            zero_line=(metric == "me"),
+        )
         outs.append(out_png)
 
     return outs
@@ -482,13 +346,6 @@ def build_report_md(
             test_figs = make_test_figures(eval_root=eval_root, eval_cfg=eval_cfg, eval_path=eval_path, overwrite=overwrite)
             if test_figs:
                 lines.append("### Test model comparison figures\n")
-                test_cfg = eval_cfg.get("test", {})
-                if not isinstance(test_cfg, dict):
-                    test_cfg = {}
-                lines.append(f"- compare_max: `{test_cfg.get('compare_max', 'None')}`")
-                lines.append(f"- references_root: `{test_cfg.get('references_root', 'references/psml_forecasting')}`")
-                if test_cfg.get("compare_filter"):
-                    lines.append(f"- compare_filter: `{test_cfg.get('compare_filter')}`")
                 for p in test_figs:
                     rel = p.relative_to(eval_root)
                     lines.append(f"![]({rel.as_posix()})")
@@ -505,6 +362,76 @@ def build_report_md(
     lines.append("")
 
     return "\n".join(lines)
+
+def plot_compare_overall(
+    items: List[Dict[str, Any]],
+    out_png: Path,
+    *,
+    metric: str,
+    getter,
+    ylabel: str,
+    title: str,
+    zero_line: bool = False,
+) -> None:
+    rows = []
+    for it in items:
+        try:
+            v = float(getter(it, metric))
+        except Exception:
+            continue
+        if v != v:  # NaN
+            continue
+        rows.append((it["name"], v))
+
+    if not rows:
+        return
+
+    rows = sorted(rows, key=lambda t: t[1])  # ascending
+    names = [r[0] for r in rows]
+    vals = [r[1] for r in rows]
+
+    plt.figure()
+    plt.bar(names, vals)
+    plt.xticks(rotation=30, ha="right")
+    if zero_line:
+        plt.axhline(0.0, linewidth=1)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.tight_layout()
+    ensure_dir(out_png.parent)
+    plt.savefig(out_png, dpi=150)
+    plt.close()
+
+def get_val_metric(it: Dict[str, Any], metric: str) -> float:
+    return it["data"]["metrics"][metric]
+
+def get_test_metric(it: Dict[str, Any], metric: str) -> float:
+    # assumes it["data"] is aggregated already
+    return it["data"]["overall"][metric]
+
+def load_compare_items(
+    *,
+    compare: List[Dict[str, Any]],
+    base_dir: Path,
+    warn_prefix: str,
+) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    for it in compare:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name", "")).strip()
+        path_str = it.get("path")
+        if not name or not path_str:
+            continue
+
+        p = resolve_path(str(path_str), base_dir)
+        if not p.exists():
+            print(f"[warn] {warn_prefix} missing: {p}")
+            continue
+
+        data = load_json(p)
+        items.append({"name": name, "data": data, "path": p})
+    return items
 
 def aggregate_psml_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     """

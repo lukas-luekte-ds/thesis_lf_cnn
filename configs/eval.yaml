@@ -1,5 +1,5 @@
 eval:
-  mode: val            # val | test
+  mode: val            # val | test | both
   tag: evaluation      # runs/<exp>/<exp>_evaluation/  (oder run_dir/eval/<tag>/)
   overwrite: true
   output_dims: ["yl_t+60","yl_t+1440","yw_t+5","yw_t+30","ys_t+5","ys_t+30"]
@@ -7,12 +7,11 @@ eval:
   val:
     metrics: ["mae", "rmse", "me"]  
     per_dim: true
-    compare_max: 5
-    compare_val:
+    compare:
       - name: "ours:mlp_run2"
-        val: "../runs/mlp_run2/mlp_run2_evaluation/val/val_metrics.json"
+        path: "../runs/mlp_run2/mlp_run2_evaluation/val/val_metrics.json"
       - name: "ours:mlp_run1"
-        val: "../runs/mlp_run1/mlp_run1_evaluation/val/val_metrics.json"
+        path: "../runs/mlp_run1/mlp_run1_evaluation/val/val_metrics.json"
 
   test:
     # settings for PSML evaluator call & csv export
@@ -24,21 +23,20 @@ eval:
     include_locations: ["CAISO_zone_1"]   # e.g. ["CAISO_zone_1", "CAISO_zone_2"]
     include_years: [2018, 2019]       # e.g. [2018, 2019, 2020]
 
-    compare_max: 5
     references_root: "references/psml_forecasting"
 
-    compare_test:
+    compare:
       - name: "ours:mlp_run2"
-        summary: "../runs/mlp_run2/mlp_run2_evaluation/test/summary.json"
+        path: "../runs/mlp_run2/mlp_run2_evaluation/test/summary.json"
       - name: "ref:cnn_ref_v1"
-        summary: "../references/psml_forecasting/cnn_ref_v1/summary.json"
+        path: "../references/psml_forecasting/cnn_ref_v1/summary.json"
       - name: "ref:exponential_smoothing_ref_v1"
-        summary: "../references/psml_forecasting/exponential_smoothing_ref_v1/summary.json"
+        path: "../references/psml_forecasting/exponential_smoothing_ref_v1/summary.json"
       - name: "ref:gradient_boosting_ref_v1"
-        summary: "../references/psml_forecasting/gradient_boosting_ref_v1/summary.json"
+        path: "../references/psml_forecasting/gradient_boosting_ref_v1/summary.json"
       - name: "ref:naive_ref_v1"
-        summary: "../references/psml_forecasting/naive_ref_v1/summary.json"
+        path: "../references/psml_forecasting/naive_ref_v1/summary.json"
       - name: "ref:rnn_ref_v1"
-        summary: "../references/psml_forecasting/rnn_ref_v1/summary.json"
+        path: "../references/psml_forecasting/rnn_ref_v1/summary.json"
       - name: "ours:mlp_run1"
-        summary: "../runs/mlp_run1/mlp_run1_evaluation/test/summary.json"
+        path: "../runs/mlp_run1/mlp_run1_evaluation/test/summary.json"
