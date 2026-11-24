@@ -1,11 +1,34 @@
+# Python cache
 __pycache__/
-*.pt
-*.pth
+*.pyc
+.pytest_cache/
+
+# Jupyter
 .ipynb_checkpoints/
-*.ckpt
+
+# Local environments
 .env
 .venv/
-experiments/
+
+# IDE
+.vscode/
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+
+# Datasets
 datasets/
-runs/
+
+# Experiment outputs
+experiments/
+/runs
+
+# Optuna databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Benchmark logs
 baselines/benchmark/Code/BenchmarkModel/LoadForecasting/logs
