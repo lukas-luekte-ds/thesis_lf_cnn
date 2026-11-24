@@ -1,20 +1,15 @@
-from typing import Dict, Any, List
+import json
+import warnings
 from pathlib import Path
-from .io import load_json, ensure_dir, write_text
-import matplotlib.pyplot as plt
+from typing import Any
 
-def _fmt(x: Any, ndigits: int = 6) -> str:
-    if x is None:
-        return "—"
-    if isinstance(x, bool):
-        return "true" if x else "false"
-    if isinstance(x, int):
-        return str(x)
-    if isinstance(x, float):
-        if x != x:  # NaN
-            return "NaN"
-        return f"{x:.{ndigits}f}"
-    return str(x)
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import yaml
+
+from .io import ensure_dir, load_json
+
 
 def resolve_path(path_str: str, base_dir: Path) -> Path:
     """Resolve path_str. If relative, resolve relative to base_dir."""
@@ -26,258 +21,221 @@ def resolve_path(path_str: str, base_dir: Path) -> Path:
 def make_test_figures(
     *,
     eval_root: Path,
-    eval_cfg: Dict[str, Any],
+    eval_cfg: dict[str, Any],
     eval_path: Path,
     overwrite: bool,
-) -> List[Path]:
-    """generates the test figures"""
+) -> list[Path]:
+    """Generate test comparison figures."""
     fig_dir = eval_root / "test" / "figures"
     ensure_dir(fig_dir)
 
     base_dir = eval_path.parent
     test_cfg = eval_cfg.get("test", {})
+
     if not isinstance(test_cfg, dict):
         return []
 
+    include_current_run = bool(
+        test_cfg.get("include_current_run", True)
+    )
+
+    items: list[dict[str, Any]] = []
+
+    # Automatically include the run currently being evaluated.
+    if include_current_run:
+        current_summary_path = (
+            eval_root / "test" / "summary.json"
+        )
+
+        if current_summary_path.exists():
+            run_dir = eval_root.parent
+            exp_name = run_dir.parent.name
+            run_id = run_dir.name
+
+            items.append(
+                {
+                    "name": f"ours:{exp_name}/{run_id}",
+                    "path": str(current_summary_path),
+                    "data": load_json(current_summary_path),
+                }
+            )
+        else:
+            print(
+                "[warn] current run summary missing: "
+                f"{current_summary_path}"
+            )
+
+    # Add manually configured comparison items.
     compare = test_cfg.get("compare", [])
-    if not isinstance(compare, list) or not compare:
+
+    if compare is None:
+        compare = []
+
+    if not isinstance(compare, list):
+        raise TypeError(
+            "eval.test.compare must be a list."
+        )
+
+    if compare:
+        compare_items = load_compare_items(
+            compare=compare,
+            base_dir=base_dir,
+            warn_prefix="compare test",
+        )
+        items.extend(compare_items)
+
+    if not items:
         return []
 
-    items = load_compare_items(compare=compare, base_dir=base_dir, warn_prefix="compare test")
-    if len(items) < 1:
-        return []
+    # PSML summary -> aggregated metrics.
+    for item in items:
+        item["data"] = aggregate_psml_summary(
+            item["data"]
+        )
 
-    # preprocess: PSML summary -> aggregated
-    for it in items:
-        it["data"] = aggregate_psml_summary(it["data"])
+    outs: list[Path] = []
 
-    outs: List[Path] = []
     for metric in ["RMSE", "MAE", "MSIS", "MAPE"]:
-        out_png = fig_dir / f"compare_overall_{metric}.png"
+        out_png = (
+            fig_dir / f"compare_overall_{metric}.png"
+        )
+
         if out_png.exists() and not overwrite:
             outs.append(out_png)
             continue
+
         plot_compare_overall(
             items,
             out_png,
             metric=metric,
-            getter=get_test_metric,
+            getter=lambda item, metric: item["data"]["overall"][metric],
             ylabel=metric,
-            title=f"Test model comparison (overall): {metric}",
+            title=(
+                f"Test model comparison (overall): "
+                f"{metric}"
+            ),
             zero_line=False,
         )
+
         outs.append(out_png)
 
     return outs
 
-def render_test_section(summary: Dict[str, Any]) -> str:
-    lines: List[str] = []
-    lines.append("## Test (PSML Evaluator)\n")
+def write_val_aggregate_outputs(run_dir: Path, exp_name: str, df_per: pd.DataFrame, agg: dict) -> dict:
+    """
+    Aggregates the outputs of the different (loc, year)-models from a single run. 
 
-    if not summary:
-        lines.append("_No test summary found or summary is empty._\n")
-        return "\n".join(lines)
+    Writes:
+      <run_dir>/evaluation/per_loc_year_val.csv
+      <run_dir>/evaluation/aggregate_val.json
+      <run_dir>/evaluation/aggregate_val_distribution.png
+    Returns paths.
+    """
+    eval_root = run_dir / "evaluation"
+    ensure_dir(eval_root)
 
-    # compact listing: years present, dims present
-    years = sorted(summary.keys(), key=lambda x: int(x) if str(x).isdigit() else str(x))
-    dims = set()
-    for y in years:
-        blk = summary.get(y, {})
-        if isinstance(blk, dict):
-            dims.update(blk.keys())
-    lines.append(f"- Years: {', '.join(map(str, years))}")
-    lines.append(f"- Dims: {', '.join(sorted(dims))}\n")
+    per_path = eval_root / "per_loc_year_val.csv"
+    df_per.to_csv(per_path, index=False)
 
-    return "\n".join(lines)
+    agg_path = eval_root / "aggregate_val.json"
+    with open(agg_path, "w", encoding="utf-8") as f:
+        json.dump(agg, f, indent=2, ensure_ascii=False)
+
+    # One plot per run: distribution + mean line
+    plot_path = eval_root / "aggregate_val_distribution.png"
+    vals = df_per[agg["objective"]].to_numpy(dtype=float)
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(vals, bins=30)
+    plt.axvline(float(agg["macro_mean"]))
+    plt.xlabel(agg["objective"])
+    plt.ylabel("count")
+    plt.title(f"{exp_name} – {agg['objective']} over (loc,year)\nmean={agg['macro_mean']:.4f}, median={agg['macro_median']:.4f}")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return {
+        "per_loc_year_csv": str(per_path),
+        "aggregate_json": str(agg_path),
+        "aggregate_plot": str(plot_path),
+    }
+
+def save_leaderboard(exp_eval_root: Path, df_lb: pd.DataFrame, metric_col: str, exp_name: str) -> dict:
+    """
+    use for validation
+    Writes:
+      leaderboard.csv
+      leaderboard.png
+    """
+    ensure_dir(exp_eval_root)
+    lb_path = exp_eval_root / "leaderboard.csv"
+    df_lb.to_csv(lb_path, index=False)
+
+    plot_path = exp_eval_root / "leaderboard.png"
+    df_sorted = df_lb.sort_values(metric_col).reset_index(drop=True)
+
+    plt.figure(figsize=(8, 4))
+    plt.bar(range(len(df_sorted)), df_sorted[metric_col].to_numpy(dtype=float))
+    plt.xlabel("Run (sorted)")
+    plt.ylabel(metric_col)
+    plt.xticks(range(len(df_sorted)), df_sorted.get("run_key", df_sorted["run_id"]).astype(str), rotation=45)
+    plt.title(f"{exp_name} - {metric_col} (sorted)")
+    plt.tight_layout()
+    plt.savefig(plot_path)
+    plt.close()
+
+    return {"leaderboard_csv": str(lb_path), "leaderboard_plot": str(plot_path)}
+
 
 ##---------- val------------------
 
 def make_val_compare_figures(
     *,
-    eval_root: Path,
-    eval_cfg: Dict[str, Any],
+    compare_root: Path,
+    eval_cfg: dict[str, Any],
     eval_path: Path,
     overwrite: bool,
-) -> List[Path]:
-    """generates the val functions"""
-    fig_dir = eval_root / "val" / "figures"
-    ensure_dir(fig_dir)
-
-    base_dir = eval_path.parent
+) -> list[Path]:
     val_cfg = eval_cfg.get("val", {})
-    if not isinstance(val_cfg, dict):
-        return []
-
     compare = val_cfg.get("compare", [])
+    compare_name = str(val_cfg.get("compare_name", "val_compare"))
+    compare_name = compare_name.strip().replace(" ", "_")
+
     if not isinstance(compare, list) or not compare:
         return []
 
-    items = load_compare_items(compare=compare, base_dir=base_dir, warn_prefix="compare val")
-    if len(items) < 1:
+    items = load_compare_items(
+        compare=compare,
+        base_dir=eval_path.parent,
+        warn_prefix="compare val",
+        path_resolver=resolve_val_compare_path, 
+    )
+
+    if not items:
         return []
 
-    outs: List[Path] = []
-    for metric in ["rmse", "mae", "me"]:
-        out_png = fig_dir / f"compare_val_overall_{metric}.png"
-        if out_png.exists() and not overwrite:
-            outs.append(out_png)
-            continue
-        plot_compare_overall(
-            items,
-            out_png,
-            metric=metric,
-            getter=get_val_metric,
-            ylabel=("ME = mean(y_pred - y_true)" if metric == "me" else metric.upper()),
-            title=f"Val model comparison (overall): {metric.upper()}",
-            zero_line=(metric == "me"),
-        )
-        outs.append(out_png)
+    ensure_dir(compare_root)
 
-    return outs
+    out_png = compare_root / f"{compare_name}.png"
 
-def render_val_section(val_metrics: Dict[str, Any]) -> str:
-    lines: List[str] = []
-    lines.append("## Validation\n")
+    if out_png.exists() and not overwrite:
+        return [out_png]
 
-    shape = val_metrics.get("shape", {})
-    mask = val_metrics.get("mask", {})
-    metrics = val_metrics.get("metrics", {})
+    plot_compare_overall(
+        items,
+        out_png,
+        metric="macro_mean",
+        getter=lambda item, metric: item["data"][metric],
+        ylabel="Validation MAE",
+        title=compare_name.replace("_", " "),
+        zero_line=False,
+    )
 
-    lines.append(f"- Shape: N={shape.get('N','?')}, D={shape.get('D','?')}")
-    lines.append(f"- Mask: n_obs={mask.get('n_obs','?')}, true_ratio={_fmt(mask.get('true_ratio'), 4)}\n")
-
-    lines.append("### Overall\n")
-    if isinstance(metrics, dict) and metrics:
-        for k, v in metrics.items():
-            lines.append(f"- {k.upper()}: {_fmt(v)}")
-    else:
-        lines.append("_No overall metrics found._")
-    lines.append("")
-
-    per_dim = val_metrics.get("per_dim")
-    if isinstance(per_dim, dict) and per_dim:
-        metric_names = list(metrics.keys()) if isinstance(metrics, dict) else []
-        if not metric_names:
-            first = next(iter(per_dim.values()))
-            metric_names = [k for k in first.keys() if k != "n_obs"]
-
-        lines.append("### Per dimension\n")
-        header = "| dim | n_obs | " + " | ".join(m.upper() for m in metric_names) + " |"
-        sep = "|---|---:|" + "|".join(["---:"] * len(metric_names)) + "|"
-        lines.append(header)
-        lines.append(sep)
-
-        for dim, entry in per_dim.items():
-            row = [dim, str(entry.get("n_obs", "—"))]
-            for m in metric_names:
-                row.append(_fmt(entry.get(m)))
-            lines.append("| " + " | ".join(row) + " |")
-        lines.append("")
-    else:
-        lines.append("_No per-dimension metrics found._\n")
-
-    return "\n".join(lines)
-
-def plot_val_per_dim(val_metrics: Dict[str, Any], out_png: Path, metric: str = "rmse", top_k: int = 20) -> None:
-    per_dim = val_metrics.get("per_dim")
-    if not isinstance(per_dim, dict) or not per_dim:
-        return
-
-    rows = []
-    for dim, entry in per_dim.items():
-        if not isinstance(entry, dict):
-            continue
-        v = entry.get(metric)
-        try:
-            v = float(v)
-        except Exception:
-            v = float("nan")
-        n_obs = entry.get("n_obs", 0)
-        rows.append((dim, v, n_obs))
-
-    rows = sorted(rows, key=lambda t: (float("-inf") if (t[1] != t[1]) else t[1]), reverse=False)[:top_k]
-    dims = [r[0] for r in rows]
-    vals = [r[1] for r in rows]
-
-    plt.figure()
-    plt.bar(dims, vals)
-    plt.xticks(rotation=30, ha="right")
-    plt.ylabel(metric.upper())
-    plt.title(f"Validation per-dim {metric.upper()} (top {top_k})")
-    plt.tight_layout()
-    ensure_dir(out_png.parent)
-    plt.savefig(out_png, dpi=150)
-    plt.close()
-
-def plot_val_overall(val_metrics: Dict[str, Any], out_png: Path) -> None:
-    metrics = val_metrics.get("metrics", {})
-    if not isinstance(metrics, dict) or not metrics:
-        return
-
-    keys = list(metrics.keys())
-    vals = [metrics[k] for k in keys]
-    # convert to float if possible
-    vals2 = []
-    for v in vals:
-        try:
-            vals2.append(float(v))
-        except Exception:
-            vals2.append(float("nan"))
-
-    plt.figure()
-    plt.bar([k.upper() for k in keys], vals2)
-    plt.ylabel("metric")
-    plt.title("Validation overall metrics")
-    plt.tight_layout()
-    ensure_dir(out_png.parent)
-    plt.savefig(out_png, dpi=150)
-    plt.close()
-
-def make_val_figures(
-    *,
-    eval_root: Path,
-    overwrite: bool,
-    top_k: int = 20,
-) -> List[Path]:
-    """
-    Creates diagnostic plots under eval_root/val/figures.
-    Only uses val_metrics.json from THIS run (no cross-run comparison by default).
-    """
-    val_path = eval_root / "val" / "val_metrics.json"
-    if not val_path.exists():
-        return []
-
-    val_metrics = load_json(val_path)
-    fig_dir = eval_root / "val" / "figures"
-    ensure_dir(fig_dir)
-
-    outs: List[Path] = []
-
-    out_overall = fig_dir / "val_overall.png"
-    if (not out_overall.exists()) or overwrite:
-        plot_val_overall(val_metrics, out_overall)
-    outs.append(out_overall)
-
-    # per-dim RMSE/MAE/ME if present
-    out_rmse = fig_dir / f"val_per_dim_rmse_top{top_k}.png"
-    if (not out_rmse.exists()) or overwrite:
-        plot_val_per_dim(val_metrics, out_rmse, metric="rmse", top_k=top_k)
-    outs.append(out_rmse)
-
-    out_mae = fig_dir / f"val_per_dim_mae_top{top_k}.png"
-    if (not out_mae.exists()) or overwrite:
-        plot_val_per_dim(val_metrics, out_mae, metric="mae", top_k=top_k)
-    outs.append(out_mae)
-
-    out_me = fig_dir / f"val_per_dim_me_top{top_k}.png"
-    if (not out_me.exists()) or overwrite:
-        plot_val_per_dim(val_metrics, out_me, metric="me", top_k=top_k)
-    outs.append(out_me)
-
-    return outs
+    return [out_png]
 
 def plot_compare_overall(
-    items: List[Dict[str, Any]],
+    items: list[dict[str, Any]],
     out_png: Path,
     *,
     metric: str,
@@ -294,10 +252,10 @@ def plot_compare_overall(
     for it in items:
         try:
             v = float(getter(it, metric))
-        except Exception:
+        except (TypeError, ValueError):
             dropped.append(it.get("name", "?"))
             continue
-        if v != v:
+        if np.isnan(v):
             dropped.append(it.get("name", "?"))
             continue
         rows.append((it["name"], v))
@@ -326,39 +284,45 @@ def plot_compare_overall(
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
 
-def get_val_metric(it: Dict[str, Any], metric: str) -> float:
-    return it["data"]["metrics"][metric]
-
-def get_test_metric(it: Dict[str, Any], metric: str) -> float:
-    # assumes it["data"] is aggregated already
-    return it["data"]["overall"][metric]
-
 def load_compare_items(
     *,
-    compare: List[Dict[str, Any]],
+    compare: list[dict[str, Any]],
     base_dir: Path,
     warn_prefix: str,
-) -> List[Dict[str, Any]]:
-    """ loads the items to compare from the yaml"""
-    items: List[Dict[str, Any]] = []
-    for it in compare:
-        if not isinstance(it, dict):
-            continue
-        name = str(it.get("name", "")).strip()
-        path_str = it.get("path")
-        if not name or not path_str:
+    path_resolver=None,
+) -> list[dict[str, Any]]:
+    items = []
+
+    for entry in compare:
+        if not isinstance(entry, dict):
             continue
 
-        p = resolve_path(str(path_str), base_dir)
-        if not p.exists():
-            print(f"[warn] {warn_prefix} missing: {p}")
+        name = str(entry.get("name", "")).strip()
+        if not name:
             continue
 
-        data = load_json(p)
-        items.append({"name": name, "data": data, "path": p})
+        if path_resolver is None:
+            path_str = entry.get("path")
+            if not path_str:
+                continue
+            path = resolve_path(str(path_str), base_dir)
+        else:
+            path = path_resolver(entry, base_dir)
+
+        if not path.exists():
+            print(f"[warn] {warn_prefix} missing: {path}")
+            continue
+
+        items.append({
+            "name": name,
+            "path": path,
+            "data": load_json(path),
+        })
+
     return items
 
-def aggregate_psml_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+def aggregate_psml_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    
     """
     Input format (from the summary.json):
       year -> dim -> {locs, RMSE, MAE, MAPE, MSIS}
@@ -374,21 +338,21 @@ def aggregate_psml_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     metrics = ["RMSE", "MAE", "MAPE", "MSIS"]
 
     # collect dims that appear anywhere
-    dims: List[str] = []
+    dims: list[str] = []
     dim_set = set()
     for year_block in summary.values():
         if isinstance(year_block, dict):
-            for d in year_block.keys():
+            for d in year_block:
                 if d not in dim_set:
                     dim_set.add(d)
                     dims.append(d)
     dims = sorted(dims)
 
-    per_dim: Dict[str, Dict[str, Any]] = {}
+    per_dim: dict[str, dict[str, Any]] = {}
     for dim in dims:
         num = {m: 0.0 for m in metrics}
         den = 0.0
-        for year, year_block in summary.items():
+        for year_block in summary.values():
             if not isinstance(year_block, dict) or dim not in year_block:
                 continue
             entry = year_block[dim]
@@ -397,7 +361,7 @@ def aggregate_psml_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
             locs = entry.get("locs", entry.get("#locs", 0))
             try:
                 locs_f = float(locs)
-            except Exception:
+            except (TypeError, ValueError):
                 locs_f = 0.0
             if locs_f <= 0:
                 continue
@@ -412,119 +376,322 @@ def aggregate_psml_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
         else:
             per_dim[dim] = {"locs_total": 0.0, **{m: float("nan") for m in metrics}}
 
-    overall: Dict[str, Any] = {}
+    overall: dict[str, Any] = {}
     for m in metrics:
-        vals = [float(per_dim[d][m]) for d in dims if per_dim[d]["locs_total"] > 0 and not (float(per_dim[d][m]) != float(per_dim[d][m]))]
+        vals = [float(per_dim[d][m]) for d in dims if per_dim[d]["locs_total"] > 0 and float(per_dim[d][m]) == float(per_dim[d][m])]
         overall[m] = (sum(vals) / len(vals)) if vals else float("nan")
 
     return {"per_dim": per_dim, "overall": overall}
 
-def build_report_md(
-    *,
-    run_dir: Path,
-    exp_name: str,
-    tag: str,
-    eval_cfg: Dict[str, Any],
-    cfg_run: Dict[str, Any],
-    eval_path: Path,
-) -> str:
-    eval_root = run_dir / f"{exp_name}_{tag}"
-
-    lines: List[str] = []
-    lines.append(f"# Report: {exp_name} ({tag})\n")
-    lines.append(f"- Run dir: `{run_dir}`")
-    lines.append(f"- Eval root: `{eval_root}`\n")
-
-    m = cfg_run.get("model", {})
-    lines.append("## Config snapshot\n")
-    lines.append(f"- Model: `{m.get('module','?')}.{m.get('class','?')}`")
-    lines.append(f"- Model kwargs: `{m.get('kwargs', {})}`")
-    lines.append(f"- Output dims: `{eval_cfg.get('output_dims', [])}`\n")
-
-    overwrite = bool(eval_cfg.get("overwrite", False))
-
-    # Validation section + figures
-    mode = str(eval_cfg.get("mode", "test")).lower()
-
-    # Validation section
-    val_path = eval_root / "val" / "val_metrics.json"
-    if val_path.exists():
-        val_metrics = load_json(val_path)
-        lines.append(render_val_section(val_metrics))
-
-        # Only generate val figures in val/both mode
-        if mode in ("val", "both"):
-            val_figs = make_val_figures(eval_root=eval_root, overwrite=overwrite, top_k=int(eval_cfg.get("val_top_k", 20)))
-            if val_figs:
-                lines.append("### Validation figures\n")
-                for p in val_figs:
-                    rel = p.relative_to(eval_root)
-                    lines.append(f"![]({rel.as_posix()})")
-                lines.append("")
-            val_compare_figs = make_val_compare_figures(
-                eval_root=eval_root,
-                eval_cfg=eval_cfg,
-                eval_path=eval_path,
-                overwrite=overwrite,
-            )
-            if val_compare_figs:
-                lines.append("### Validation model comparison figures\n")
-                for p in val_compare_figs:
-                    rel = p.relative_to(eval_root)
-                    lines.append(f"![]({rel.as_posix()})")
-                lines.append("")
-    else:
-        lines.append("## Validation\n\n_No val_metrics.json found._\n")
-
-
-    # Test section + figures
-    summary_path = eval_root / "test" / "summary.json"
-    if summary_path.exists():
-        summary = load_json(summary_path)
-        lines.append(render_test_section(summary))
-
-        if mode in ("test", "both"):
-            # compare plots
-            test_figs = make_test_figures(eval_root=eval_root, eval_cfg=eval_cfg, eval_path=eval_path, overwrite=overwrite)
-            if test_figs:
-                lines.append("### Test model comparison figures\n")
-                for p in test_figs:
-                    rel = p.relative_to(eval_root)
-                    lines.append(f"![]({rel.as_posix()})")
-                lines.append("")
-    else:
-        lines.append("## Test (PSML Evaluator)\n\n_No test/summary.json found._\n")
-
-    # Artifacts
-    lines.append("## Artifacts\n")
-    lines.append(f"- Validation metrics: `{val_path}`" + ("" if val_path.exists() else " _(missing)_"))
-    lines.append(f"- Test summary: `{summary_path}`" + ("" if summary_path.exists() else " _(missing)_"))
-    pred_dir = eval_root / "test" / "predictions"
-    lines.append(f"- Test predictions dir: `{pred_dir}`" + ("" if pred_dir.exists() else " _(missing)_"))
-    lines.append("")
-
-    return "\n".join(lines)
-
-def report_and_save(
-    *,
-    run_dir: Path,
-    exp_name: str,
-    eval_cfg: Dict[str, Any],
-    cfg_run: Dict[str, Any],
-    eval_path: Path,
+def resolve_best_sweep_val_path(
+    sweep_dir: Path,
+    metric_col: str = "val_mean_over_loc_year",
 ) -> Path:
-    tag = eval_cfg["tag"]
-    overwrite = bool(eval_cfg.get("overwrite", False))
-    eval_root = run_dir / f"{exp_name}_{tag}"
-    out_path = eval_root / "report.md"
+    leaderboard_path = sweep_dir / "validation" / "leaderboard.csv"
 
-    md = build_report_md(
-        run_dir=run_dir,
-        exp_name=exp_name,
-        tag=tag,
-        eval_cfg=eval_cfg,
-        cfg_run=cfg_run,
-        eval_path=eval_path,
-    )
-    write_text(out_path, md, overwrite=overwrite)
-    return out_path
+    if not leaderboard_path.exists():
+        raise FileNotFoundError(
+            f"Validation leaderboard not found: {leaderboard_path}"
+        )
+
+    df = pd.read_csv(leaderboard_path)
+
+    if metric_col not in df.columns:
+        raise KeyError(
+            f"Metric '{metric_col}' not found in {leaderboard_path}"
+        )
+
+    if "run_dir" not in df.columns:
+        raise KeyError(
+            f"'run_dir' column missing in {leaderboard_path}"
+        )
+
+    valid = df.dropna(subset=[metric_col])
+    if valid.empty:
+        raise RuntimeError(
+            f"No valid '{metric_col}' values in {leaderboard_path}"
+        )
+
+    best_row = valid.loc[valid[metric_col].idxmin()]
+    best_run_dir = Path(best_row["run_dir"])
+
+    return best_run_dir / "evaluation" / "aggregate_val.json"
+
+def resolve_val_compare_path(
+    entry: dict[str, Any],
+    base_dir: Path,
+) -> Path:
+    if entry.get("use_best_run", False):
+        sweep_str = entry.get("sweep")
+        if not sweep_str:
+            raise ValueError(
+                "use_best_run=true requires 'sweep'."
+            )
+
+        sweep_dir = resolve_path(str(sweep_str), base_dir)
+        return resolve_best_sweep_val_path(sweep_dir)
+
+    path_str = entry.get("path")
+    if not path_str:
+        raise ValueError(
+            "Validation compare item needs 'path' "
+            "or 'use_best_run: true'."
+        )
+
+    return resolve_path(str(path_str), base_dir)
+
+
+
+
+# ---- Hyperparameter sweep validation analysis ----
+SCORE = "val_mean_over_loc_year"
+PARAMS = {
+    "learning_rate": ("train", "lr"),
+    "weight_decay": ("train", "weight_decay"),
+    "optimizer": ("train", "optimizer"),
+    "loss_type": ("train", "loss_type"),
+    "huber_delta": ("train", "huber_delta"),
+    "dropout": ("model", "kwargs", "dropout"),
+    "hidden_sizes": ("model", "kwargs", "hidden_sizes"),
+    "activation": ("model", "kwargs", "activation"),
+    "use_layernorm": ("model", "kwargs", "use_layernorm"),
+    "use_input_norm": ("model", "kwargs", "use_input_norm"),
+}
+
+
+def _sweep_nested(obj, path):
+    for part in path:
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(part)
+    return obj
+
+
+def _sweep_scalar(v):
+    if isinstance(v, list):
+        return "-".join(map(str, v))
+    if isinstance(v, (dict, tuple)):
+        return str(v)
+    return v
+
+
+def _read_sweep_zone_metrics(run_dir):
+    records = []
+    for p in sorted((run_dir / "zones").glob("*/*/metrics.json")):
+        try:
+            with p.open(encoding="utf-8") as f:
+                m = json.load(f)
+            eff = m.get("efficiency", {})
+            score = m.get("val_mae_mean_over_targets")
+            if score is None and m.get("val_mae_per_target"):
+                score = float(np.mean(m["val_mae_per_target"]))
+            records.append({
+                "loc": str(m.get("loc", p.parent.parent.name)),
+                "year": str(m.get("year", p.parent.name)),
+                "zone_mae": score,
+                "runtime_seconds": eff.get("training_runtime_seconds"),
+                "num_params_trainable": eff.get("num_params_trainable"),
+                "num_params_total": eff.get("num_params_total"),
+            })
+        except (OSError, ValueError, TypeError) as exc:
+            warnings.warn(f"Skipping {p}: {exc}")
+    return pd.DataFrame(records)
+
+
+def _load_sweep_analysis(sweep_dir, include_incomplete=False):
+    leaderboard = sweep_dir / "validation" / "leaderboard.csv"
+    if not leaderboard.exists():
+        raise FileNotFoundError(f"Missing leaderboard: {leaderboard}")
+    df = pd.read_csv(leaderboard)
+    if SCORE not in df or "run_id" not in df:
+        raise ValueError(f"Leaderboard requires run_id and {SCORE}")
+    df[SCORE] = pd.to_numeric(df[SCORE], errors="coerce")
+    df = df.loc[np.isfinite(df[SCORE])].copy()
+    if "val_n_experiments" in df and not include_incomplete:
+        counts = pd.to_numeric(df["val_n_experiments"], errors="coerce")
+        expected = counts.mode().iloc[0] if counts.notna().any() else None
+        omitted = int((counts != expected).sum())
+        if omitted:
+            print(f"[info] {omitted} run(s) with a different unit count excluded from comparisons (expected {expected}).")
+        df = df.loc[counts == expected].copy()
+
+    rows, zones = [], []
+    for _, r in df.iterrows():
+        # Multi-directory leaderboards must use the original run path.
+        saved_path = r.get("run_dir")
+        if isinstance(saved_path, str) and saved_path.strip() and Path(saved_path).is_dir():
+            run_dir = Path(saved_path).resolve()
+        else:
+            run_dir = sweep_dir / str(r["run_id"])
+        config_file = run_dir / "config_used.yaml"
+        if not config_file.exists():
+            warnings.warn(f"Missing config: {config_file}; skipping run")
+            continue
+        with config_file.open(encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        record = r.to_dict()
+        record["run_id"] = str(r.get("run_key", r["run_id"]))
+        for name, path in PARAMS.items():
+            record[name] = _sweep_scalar(_sweep_nested(cfg, path))
+        hs = _sweep_nested(cfg, ("model", "kwargs", "hidden_sizes"))
+        if isinstance(hs, list):
+            record["num_layers"] = len(hs)
+            record["max_hidden_size"] = max(hs) if hs else np.nan
+        zone_df = _read_sweep_zone_metrics(run_dir)
+        if not zone_df.empty:
+            zone_df["run_id"] = str(r.get("run_key", r["run_id"]))
+            zones.append(zone_df)
+            times = pd.to_numeric(zone_df["runtime_seconds"], errors="coerce")
+            record["training_time_seconds"] = times.sum() if times.notna().all() else np.nan
+            params = pd.to_numeric(zone_df["num_params_trainable"], errors="coerce").dropna().unique()
+            record["num_params_trainable"] = params[0] if len(params) == 1 else np.nan
+            if len(params) > 1:
+                warnings.warn(f"Inconsistent parameter counts in {run_dir}")
+        rows.append(record)
+    if not rows:
+        raise ValueError("No runs with readable config_used.yaml")
+    return pd.DataFrame(rows), (pd.concat(zones, ignore_index=True) if zones else pd.DataFrame())
+
+
+def _save_sweep_plot(fig, path):
+    fig.tight_layout()
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    print(f"[plot] {path}")
+
+
+def _sweep_top_ranking(df, out, top_n=15):
+    d = df.nsmallest(top_n, SCORE).sort_values(SCORE, ascending=False)
+    fig, ax = plt.subplots(figsize=(9, max(4.5, .38 * len(d))))
+    ax.barh(d["run_id"].astype(str), d[SCORE])
+    ax.set_xlabel("Validation MAE (macro mean over zone-years)")
+    ax.set_ylabel("Run")
+    ax.set_title(f"Top {len(d)} configurations")
+    _save_sweep_plot(fig, out / "top15_ranking.png")
+    d.to_csv(out / "top15_ranking.csv", index=False)
+
+
+def _sweep_scatter(df, x, out, *, logx=False, title=None):
+    d = df[[x, SCORE]].copy()
+    d[x] = pd.to_numeric(d[x], errors="coerce")
+    d = d.replace([np.inf, -np.inf], np.nan).dropna()
+    if logx:
+        d = d[d[x] > 0]
+    if len(d) < 2 or d[x].nunique() < 2:
+        return
+    fig, ax = plt.subplots(figsize=(7.5, 4.8))
+    ax.scatter(d[x], d[SCORE], alpha=.55, s=22)
+    if logx:
+        ax.set_xscale("log")
+    ax.set_xlabel(x.replace("_", " "))
+    ax.set_ylabel("Validation MAE")
+    ax.set_title(title or f"{x} vs. validation MAE")
+    _save_sweep_plot(fig, out / f"sensitivity_{x}.png")
+
+
+def _sweep_categorical(df, col, out, max_categories=16):
+    d = df[[col, SCORE]].dropna().copy()
+    d[col] = d[col].astype(str)
+    groups = d.groupby(col)[SCORE]
+    if not 2 <= len(groups) <= max_categories:
+        return
+    names = sorted(groups.groups, key=lambda name: groups.get_group(name).median())
+    fig, ax = plt.subplots(figsize=(max(7, .65 * len(names)), 5))
+    vals = [groups.get_group(name).to_numpy(dtype=float) for name in names]
+    ax.boxplot(vals, labels=names, showfliers=True)
+    ax.tick_params(axis="x", labelrotation=35)
+    ax.set_xlabel(col.replace("_", " "))
+    ax.set_ylabel("Validation MAE")
+    ax.set_title(f"{col} vs. validation MAE")
+    _save_sweep_plot(fig, out / f"sensitivity_{col}.png")
+
+
+def _sweep_importance_fanova(df, out):
+    try:
+        import optuna
+        from optuna.distributions import CategoricalDistribution, FloatDistribution
+        from optuna.importance import FanovaImportanceEvaluator, get_param_importances
+    except ImportError:
+        warnings.warn("optuna not installed; skipping fANOVA importance")
+        return
+    candidates = ["learning_rate", "weight_decay", "dropout", "hidden_sizes", "activation", "optimizer", "loss_type", "huber_delta", "use_layernorm", "use_input_norm"]
+    # fANOVA requires a complete, consistent parameter space across trials.
+    selected = [p for p in candidates if p in df and df[p].notna().all() and df[p].astype(str).nunique() > 1]
+    if not selected:
+        warnings.warn("No varying hyperparameters found for importance")
+        return
+    numeric = {"learning_rate", "weight_decay", "dropout", "huber_delta"}
+    distributions = {}
+    for p in selected:
+        values = df[p].tolist()
+        if p in numeric and all(isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, (bool, np.bool_)) for v in values):
+            lo, hi = float(min(values)), float(max(values))
+            distributions[p] = FloatDistribution(lo, hi, log=(p == "learning_rate" and lo > 0))
+        else:
+            distributions[p] = CategoricalDistribution(sorted(set(values), key=str))
+    study = optuna.create_study(direction="minimize", sampler=optuna.samplers.RandomSampler(seed=0))
+    for _, r in df.iterrows():
+        values = {p: (float(r[p]) if isinstance(distributions[p], FloatDistribution) else r[p]) for p in selected}
+        study.add_trial(optuna.trial.create_trial(params=values, distributions=distributions, value=float(r[SCORE])))
+    try:
+        imp = get_param_importances(study, evaluator=FanovaImportanceEvaluator(n_trees=64, seed=0), params=selected)
+    except Exception as exc:  # noqa: BLE001
+        warnings.warn(f"fANOVA could not be calculated: {exc}")
+        return
+    s = pd.Series(imp, name="importance").sort_values()
+    s.to_csv(out / "hyperparameter_importance_fanova.csv", header=True)
+    fig, ax = plt.subplots(figsize=(8, max(4, .45 * len(s))))
+    ax.barh(s.index, s.values)
+    ax.set_xlabel("Estimated relative importance (fANOVA)")
+    ax.set_title("Hyperparameter importance (validation MAE)")
+    _save_sweep_plot(fig, out / "hyperparameter_importance_fanova.png")
+
+
+def _sweep_zone_boxplots(df, zone_df, out, top_n=5):
+    if zone_df.empty:
+        warnings.warn("No zone metrics found; skipping zone plots")
+        return
+    zone_df = zone_df.copy()
+    zone_df["zone_mae"] = pd.to_numeric(zone_df["zone_mae"], errors="coerce")
+    zone_df = zone_df.dropna(subset=["zone_mae"])
+    best = df.nsmallest(top_n, SCORE)["run_id"].astype(str).tolist()
+    z = zone_df[zone_df["run_id"].isin(best)]
+    if z.empty:
+        return
+    # One point per physical zone and run, averaging available years.
+    per_zone = z.groupby(["run_id", "loc"], as_index=False)["zone_mae"].mean()
+    per_zone.to_csv(out / "top_runs_per_zone_mae.csv", index=False)
+    groups = [per_zone.loc[per_zone["run_id"] == rid, "zone_mae"].to_numpy() for rid in best]
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.boxplot(groups, labels=best, showfliers=True)
+    rng = np.random.default_rng(0)
+    for i, vals in enumerate(groups, start=1):
+        ax.scatter(i + rng.uniform(-.12, .12, len(vals)), vals, s=12, alpha=.4)
+    ax.set_xlabel("Run")
+    ax.set_ylabel("Mean validation MAE per zone (across years)")
+    ax.set_title("Zone variation in top configurations")
+    _save_sweep_plot(fig, out / "zone_boxplots_top5.png")
+    # Explicitly identify zones with the largest MAE for the best run.
+    best_zone = per_zone[per_zone["run_id"] == best[0]].nlargest(15, "zone_mae")
+    best_zone.to_csv(out / "worst_zones_best_run.csv", index=False)
+
+
+
+def make_sweep_val_figures(sweep_dir: Path, *, include_incomplete: bool = False) -> list[Path]:
+    """Create post-hoc sweep plots from existing validation results; no inference."""
+    sweep_dir = Path(sweep_dir)
+    out = sweep_dir / "validation" / "analysis"
+    ensure_dir(out)
+    df, zones = _load_sweep_analysis(sweep_dir, include_incomplete=include_incomplete)
+    df.to_csv(out / "sweep_analysis_data.csv", index=False)
+    _sweep_top_ranking(df, out)
+    _sweep_importance_fanova(df, out)
+    _sweep_scatter(df, "learning_rate", out, logx=True)
+    _sweep_scatter(df, "weight_decay", out, logx=False)
+    for param in ("hidden_sizes", "num_layers", "max_hidden_size", "dropout", "activation", "use_layernorm", "optimizer"):
+        if param in df:
+            _sweep_categorical(df, param, out)
+    _sweep_zone_boxplots(df, zones, out)
+    _sweep_scatter(df, "training_time_seconds", out, title="Training time vs. validation MAE")
+    _sweep_scatter(df, "num_params_trainable", out, title="Trainable parameters vs. validation MAE")
+    return sorted(out.glob("*.png"))

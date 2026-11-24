@@ -1,77 +1,65 @@
+import importlib
 import re
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
+from utils import save_json
+
+from .io import ensure_dir, suppress_output
 from .types import PredFrame
-from .io import ensure_dir
-from .io import suppress_output, _to_builtin, save_json
-import importlib
 
 # matches "<loc>_<year>" filenames, e.g. CAISO_zone_1_2018
 _LOC_YEAR_RE = re.compile(r"^(?P<loc>.+)_(?P<year>\d{4})$")
 
-def discover_psml_targets(cfg_run: dict, eval_cfg: dict) -> List[Tuple[str, int]]:
-    test_cfg = eval_cfg["test"]
+def discover_trained_run_units(run_dir: Path) -> list[tuple[str, int]]:
+    """
+    Discover all successfully trained (loc, year) units from the run directory.
 
-    # 1) Manual targets override
-    if "targets" in test_cfg and test_cfg["targets"]:
-        return [(str(t["loc"]), int(t["year"])) for t in test_cfg["targets"]]
+    Expected structure:
+        run_dir/zones/<loc>/<year>/checkpoints/best-val.pt
+    """
+    zones_root = run_dir / "zones"
 
-    # 2) Discover from processed_dataset folder
-    root = Path(cfg_run["data"]["root"])
-    rel = test_cfg.get("data_folder", "processed_dataset/forecasting")
-    data_folder = (root / rel).resolve()
-    pattern = test_cfg.get("pattern", "*.csv")
+    if not zones_root.exists():
+        raise FileNotFoundError(
+            f"Zones directory not found: {zones_root}"
+        )
 
-    if not data_folder.exists():
-        raise FileNotFoundError(f"PSML data_folder not found: {data_folder}")
+    units: list[tuple[str, int]] = []
 
-    include_locs = set(map(str, test_cfg.get("include_locations", []) or []))
-    include_years = set(map(int, test_cfg.get("include_years", []) or []))
+    checkpoint_paths = sorted(
+        zones_root.glob("*/*/checkpoints/best-val.pt")
+    )
 
-    targets: List[Tuple[str, int]] = []
-    for p in sorted(data_folder.glob(pattern)):
-        stem = p.stem  # "CAISO_zone_1_2018"
-        m = _LOC_YEAR_RE.match(stem)
-        if not m:
+    for checkpoint_path in checkpoint_paths:
+        year_dir = checkpoint_path.parent.parent
+        loc_dir = year_dir.parent
+
+        loc = loc_dir.name
+
+        try:
+            year = int(year_dir.name)
+        except ValueError:
+            print(
+                f"[warn] Ignoring checkpoint with invalid year directory: "
+                f"{checkpoint_path}"
+            )
             continue
-        loc = m.group("loc")
-        year = int(m.group("year"))
 
-        if include_locs and loc not in include_locs:
-            continue
-        if include_years and year not in include_years:
-            continue
+        units.append((loc, year))
 
-        targets.append((loc, year))
+    if not units:
+        raise RuntimeError(
+            f"No trained loc/year checkpoints found under: {zones_root}"
+        )
 
-    if not targets:
-        raise RuntimeError(f"No targets discovered in {data_folder} (pattern={pattern}).")
-
-    return targets
+    return units
 
 #layer 2b
-def load_test_ids_for_loc_year(cfg_run: dict, eval_cfg: dict, loc: str, year: int) -> np.ndarray:
-    """
-    Load the psml test data from the processed csv data and 
-    returns the ids for the corresponding year and location. 
-    The filter is using train_flag==0 data as it is done in 
-    the psml benchmark. 
-    """
-    root = Path(cfg_run["data"]["root"])
-    test_cfg = eval_cfg["test"]
-    rel = test_cfg.get("data_folder", "processed_dataset/forecasting")
-    csv_path = (root / rel / f"{loc}_{year}.csv").resolve()
-    if not csv_path.exists():
-        raise FileNotFoundError(f"loc_year file not found: {csv_path}")
 
-    df = pd.read_csv(csv_path, usecols=["ID", "train_flag"])
-    # evaluator uses train_flag==0 as test rows like psml does
-    ids = df.loc[df["train_flag"].to_numpy() == 0, "ID"].to_numpy()
-    return ids
-
-def _psml_csv_columns(output_dims: List[str]) -> List[str]:
+def _psml_csv_columns(output_dims: list[str]) -> list[str]:
     cols = ["ID"]
     for name in output_dims:
         cols += [f"{name}(mean)", f"{name}(U)", f"{name}(L)"]
@@ -80,11 +68,11 @@ def _psml_csv_columns(output_dims: List[str]) -> List[str]:
 def write_psml_prediction_csv(
     preds: PredFrame,
     out_csv: Path,
-    output_dims: List[str],
+    output_dims: list[str],
     *,
     overwrite: bool,
     interval: str = "degenerate",
-    std_per_dim: Optional[np.ndarray] = None,
+    std_per_dim: np.ndarray | None = None,
     interval_multiplier: float = 1.96,
 ) -> Path:
     """
@@ -154,7 +142,7 @@ def run_psml_evaluator_and_save(
     # Import evaluator (installed via baselines benchmark package)
     try:
         mod = importlib.import_module("BenchmarkModel.LoadForecasting.evaluating")
-        run_evaluate_forecasting = getattr(mod, "run_evaluate_forecasting")
+        run_evaluate_forecasting = mod.run_evaluate_forecasting
     except Exception as e:
         raise ImportError(
             "Could not import PSML evaluator. Make sure the benchmark package is installed "
@@ -162,7 +150,7 @@ def run_psml_evaluator_and_save(
             "E.g. run 'make install-baselines' for ENV_MAIN or install it into dl env."
         ) from e
 
-    input_dict: Dict[str, Dict[str, np.ndarray]] = {}
+    input_dict: dict[str, dict[str, np.ndarray]] = {}
     csvs = sorted(prediction_dir.glob("*.csv"))
     if not csvs:
         raise FileNotFoundError(f"No prediction CSVs found in {prediction_dir}")
@@ -179,7 +167,5 @@ def run_psml_evaluator_and_save(
             prediction_interval=prediction_interval,
         )
 
-    # Make JSON-serializable and save
-    summary2 = _to_builtin(summary)
-    save_json(out_summary_json, summary2, overwrite=overwrite)
+    save_json(out_summary_json, summary, overwrite=overwrite)
     return out_summary_json

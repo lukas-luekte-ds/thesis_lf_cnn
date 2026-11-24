@@ -1,9 +1,11 @@
-import torch
 import numpy as np
-from .types import PredFrame
-from typing import List
+import torch
 
-# layer 1a: Inference
+from .types import PredFrame
+
+
+# layer 1a: Inference, unused since the validation uses the inference from training,
+# could be used to validate an already trained model
 @torch.no_grad()
 def infer_val(model, dataloader, device) -> PredFrame:
     """
@@ -53,8 +55,8 @@ def infer_test(model, dataloader, device) -> PredFrame:
     model.eval()
     model.to(device)
 
-    ids_all: List[np.ndarray] = []
-    pred_all: List[np.ndarray] = []
+    ids_all: list[np.ndarray] = []
+    pred_all: list[np.ndarray] = []
 
     for ID, x in dataloader:
         if torch.is_tensor(ID):
@@ -72,28 +74,4 @@ def infer_test(model, dataloader, device) -> PredFrame:
         raise ValueError(f"N mismatch: ids={ids.shape[0]} vs y_pred={y_pred.shape[0]}")
 
     return PredFrame(ids=ids, y_pred=y_pred, y_true=None, eval_mask=None)
-
-
-#layer 2b
-def subset_preds_by_ids(preds: PredFrame, ids_wanted: np.ndarray) -> PredFrame:
-    """
-    selects the wanted ids in the array and returns the result als PredFrame
-    """
-    ids_all = preds.ids.astype(np.int64, copy=False)
-    ids_wanted = np.asarray(ids_wanted).astype(np.int64, copy=False)
-
-    # sort once for fast lookup
-    order = np.argsort(ids_all)
-    ids_sorted = ids_all[order]
-
-    pos = np.searchsorted(ids_sorted, ids_wanted)
-
-    # validate found
-    ok = (pos >= 0) & (pos < ids_sorted.size) & (ids_sorted[pos] == ids_wanted)
-    if not np.all(ok):
-        missing = ids_wanted[~ok][:10]
-        raise ValueError(f"Some IDs not found in global test predictions. Example missing IDs: {missing}")
-
-    idx = order[pos]  # indices into preds arrays
-    return PredFrame(ids=ids_all[idx], y_pred=preds.y_pred[idx], y_true=None, eval_mask=None)
 

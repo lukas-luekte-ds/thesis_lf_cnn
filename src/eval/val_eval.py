@@ -1,8 +1,13 @@
-import numpy as np
-from .types import PredFrame
-from typing import List, Dict, Any
+import json
 from pathlib import Path
-from .io import save_json
+from typing import Any
+
+import numpy as np
+
+from model_utils import get_output_dims_from_run
+from utils import save_json
+
+from .types import PredFrame
 
 
 def _masked_values(y_true: np.ndarray, y_pred: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -29,10 +34,10 @@ def _compute_metric(name: str, yt: np.ndarray, yp: np.ndarray) -> float:
 def eval_val_metrics(
     preds: PredFrame,
     *,
-    dim_names: List[str],
-    metrics: List[str],
+    dim_names: list[str],
+    metrics: list[str],
     per_dim: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Masked metrics on validation predictions.
     Requires preds.y_true and preds.eval_mask.
@@ -54,7 +59,7 @@ def eval_val_metrics(
     # overall (flattened masked)
     yt_flat, yp_flat = _masked_values(y_true, y_pred, mask)
 
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "split": "val",
         "shape": {"N": int(y_pred.shape[0]), "D": int(y_pred.shape[1])},
         "mask": {
@@ -69,7 +74,7 @@ def eval_val_metrics(
 
     # per-dim metrics
     if per_dim:
-        per: Dict[str, Any] = {}
+        per: dict[str, Any] = {}
         for j, name in enumerate(dim_names):
             yt_j, yp_j = _masked_values(y_true[:, j], y_pred[:, j], mask[:, j])
             entry = {
@@ -82,19 +87,85 @@ def eval_val_metrics(
 
     return out
 
+def aggregate_val_over_loc_year_from_zone_metrics(run_dir: Path) -> dict:
+    """
+    Reads zones/<loc>/<year>/metrics.json and aggregates:
+      - per (loc,year): val_mae_mean_over_targets
+      - macro mean over all (loc,year)
+    Returns dict with aggregate + a dataframe-like list.
+    """
+    zones_root = run_dir / "zones"
+    metric_paths = sorted(zones_root.glob("*/*/metrics.json"))
+
+    if not metric_paths:
+        return {
+            "n_experiments": 0,
+            "macro_mean": None,
+            "macro_median": None,
+            "macro_std": None,
+            "per_loc_year": [],
+        }
+
+    rows = []
+    for mp in metric_paths:
+        try:
+            with open(mp, "r", encoding="utf-8") as f:
+                m = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"[warn] skipping invalid metrics file {mp}: {e}")
+            continue
+
+        loc = m.get("loc", mp.parent.parent.name)
+        year = m.get("year", mp.parent.name)
+
+        v = m.get("val_mae_mean_over_targets", None)
+        if v is None:
+            pt = m.get("val_mae_per_target", None)
+            if pt is not None:
+                v = float(np.mean(pt))
+
+        if v is None:
+            continue
+
+        rows.append({
+            "loc": str(loc),
+            "year": int(year) if str(year).isdigit() else year,
+            "val_mae_mean_over_targets": float(v),
+            "metrics_path": str(mp),
+        })
+
+    if not rows:
+        return {
+            "n_experiments": 0,
+            "macro_mean": None,
+            "macro_median": None,
+            "macro_std": None,
+            "per_loc_year": [],
+        }
+
+    vals = np.array([r["val_mae_mean_over_targets"] for r in rows], dtype=float)
+    return {
+        "n_experiments": len(rows),
+        "macro_mean": float(vals.mean()),
+        "macro_median": float(np.median(vals)),
+        "macro_std": float(vals.std(ddof=0)),
+        "per_loc_year": rows,
+    }
+
 def eval_val_and_save(
     preds: PredFrame,
     *,
     run_dir: Path,
     exp_name: str,
-    eval_cfg: Dict[str, Any],
+    eval_cfg: dict[str, Any],
+    cfg_run: dict[str, Any],
 ) -> Path:
     """
     Writes: <run_dir>/<exp_name>_<tag>/val/val_metrics.json
     """
     tag = eval_cfg["tag"]
     overwrite = bool(eval_cfg.get("overwrite", False))
-    dim_names = list(eval_cfg["output_dims"])
+    dim_names = get_output_dims_from_run(cfg_run)
 
     val_cfg = eval_cfg.get("val", {})
     metrics = list(val_cfg.get("metrics", ["mae", "rmse", "me"]))

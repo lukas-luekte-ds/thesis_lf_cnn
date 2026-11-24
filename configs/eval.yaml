@@ -1,42 +1,52 @@
 eval:
-  mode: val            # val | test | both
-  tag: evaluation      # runs/<exp>/<exp>_evaluation/  (oder run_dir/eval/<tag>/)
+  mode: val           # val | test | both
   overwrite: true
-  output_dims: ["yl_t+60","yl_t+1440","yw_t+5","yw_t+30","ys_t+5","ys_t+30"]
 
   val:
     metrics: ["mae", "rmse", "me"]  
     per_dim: true
+    
+    sweep_analysis_enabled: true
+    include_incomplete: false
+    compare_enabled: false
+    compare_name: "mlp_vs_lstm"
+    sweep_dirs:
+      - runs/lstm_sweep
+      - runs/lstm_tpe
+
     compare:
-      - name: "ours:mlp_run2"
-        path: "../runs/mlp_run2/mlp_run2_evaluation/val/val_metrics.json"
-      - name: "ours:mlp_run1"
-        path: "../runs/mlp_run1/mlp_run1_evaluation/val/val_metrics.json"
+      - name: "MLP fast"
+        sweep: "../runs/mlp_sweep_fast"
+        use_best_run: true
+
+      - name: "MLP faster"
+        sweep: "../runs/mlp_sweep_faster"
+        use_best_run: true
+        
+      - name: "One bad run"
+        path: "../runs/mlp_sweep_fast/id_001/evaluation/aggregate_val.json"
+      
 
   test:
-    # settings for PSML evaluator call & csv export
-    csv_dirname: test
     prediction_interval: 0.95
-    data_folder: processed_dataset/forecasting   # relative to data.root
-    pattern: "*.csv"                              # allow filtering later
-    # optional filters:
-    include_locations: ["CAISO_zone_1"]   # e.g. ["CAISO_zone_1", "CAISO_zone_2"]
-    include_years: [2018, 2019]       # e.g. [2018, 2019, 2020]
 
     references_root: "references/psml_forecasting"
-
+    include_current_run: true   
+    
     compare:
-      - name: "ours:mlp_run2"
-        path: "../runs/mlp_run2/mlp_run2_evaluation/test/summary.json"
+      #- name: "ours:mlp_quick_test"
+      #  path: "../runs/mlp_quick_test/id_002/evaluation/test/summary.json"
       - name: "ref:cnn_ref_v1"
         path: "../references/psml_forecasting/cnn_ref_v1/summary.json"
-      - name: "ref:exponential_smoothing_ref_v1"
-        path: "../references/psml_forecasting/exponential_smoothing_ref_v1/summary.json"
+      #- name: "ref:exponential_smoothing_ref_v1"
+      #  path: "../references/psml_forecasting/exponential_smoothing_ref_v1/summary.json"
       - name: "ref:gradient_boosting_ref_v1"
         path: "../references/psml_forecasting/gradient_boosting_ref_v1/summary.json"
+      #- name: "ref:linear_regression_ref_v1"
+      #  path: "../references/psml_forecasting/linear_regression_ref_v1/summary.json"
       - name: "ref:naive_ref_v1"
         path: "../references/psml_forecasting/naive_ref_v1/summary.json"
       - name: "ref:rnn_ref_v1"
         path: "../references/psml_forecasting/rnn_ref_v1/summary.json"
-      - name: "ours:mlp_run1"
-        path: "../runs/mlp_run1/mlp_run1_evaluation/test/summary.json"
+      - name: "ref:tcn_ref_v1"
+        path: "../references/psml_forecasting/tcn_ref_v1/summary.json"       
