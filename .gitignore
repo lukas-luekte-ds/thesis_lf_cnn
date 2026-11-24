@@ -32,3 +32,7 @@ experiments/
 
 # Benchmark logs
 baselines/benchmark/Code/BenchmarkModel/LoadForecasting/logs
+# Generated notebook outputs
+/notebooks/runs/
+/notebooks/tmp_preds/
+/notebooks/tmp_eval/
