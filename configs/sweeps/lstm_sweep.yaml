@@ -36,7 +36,7 @@ parameters:
       - [128, 128]
       - [256, 256]
       - [256, 128]
-      - [64, 64, 64] 
+      - [64, 64, 64]
       - [256, 256, 256]
 
 optuna:
@@ -45,4 +45,4 @@ optuna:
   storage: runs/lstm_tpe.db
   import_dir: runs/lstm_sweep
   output_root: runs
-  exp_name: lstm_tpe 
+  exp_name: lstm_tpe

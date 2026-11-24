@@ -23,7 +23,7 @@ parameters:
     values: ["adam", "adamw"]
 
   model.kwargs.dropout:
-    values: [0.0, 0.3, 0.5] 
+    values: [0.0, 0.3, 0.5]
 
   model.kwargs.hidden_sizes:
     values:
@@ -33,7 +33,7 @@ parameters:
       - [128, 128]
       - [256, 256]
       - [256, 128]
-      - [64, 64, 64] 
+      - [64, 64, 64]
       - [256, 256, 256]
 
 optuna:
@@ -42,4 +42,4 @@ optuna:
   storage: runs/clstm_tpe.db
   import_dir: runs/clstm_sweep
   output_root: runs
-  exp_name: clstm_tpe 
+  exp_name: clstm_tpe

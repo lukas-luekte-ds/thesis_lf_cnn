@@ -16,7 +16,7 @@ class InputNormalizer(nn.Module):
     def fit(self, x: torch.Tensor):
         # imput x: [N, D] so the columns will be the different features
         mean = x.mean(dim=0) # dim = 0 aggregate the lines columnwise
-        std = x.std(dim=0, unbiased=False).clamp_min(self.eps) # clamp_min to dodge division by 0 
+        std = x.std(dim=0, unbiased=False).clamp_min(self.eps) # clamp_min to dodge division by 0
         self.mean.copy_(mean)
         self.std.copy_(std)
 

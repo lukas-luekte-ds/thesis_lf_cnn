@@ -123,7 +123,7 @@ def make_test_figures(
 
 def write_val_aggregate_outputs(run_dir: Path, exp_name: str, df_per: pd.DataFrame, agg: dict) -> dict:
     """
-    Aggregates the outputs of the different (loc, year)-models from a single run. 
+    Aggregates the outputs of the different (loc, year)-models from a single run.
 
     Writes:
       <run_dir>/evaluation/per_loc_year_val.csv
@@ -209,7 +209,7 @@ def make_val_compare_figures(
         compare=compare,
         base_dir=eval_path.parent,
         warn_prefix="compare val",
-        path_resolver=resolve_val_compare_path, 
+        path_resolver=resolve_val_compare_path,
     )
 
     if not items:
@@ -244,8 +244,8 @@ def plot_compare_overall(
     title: str,
     zero_line: bool = False,
 ) -> None:
-    """ the compare plots between the different models. 
-    Can be used for validation and for tests 
+    """ the compare plots between the different models.
+    Can be used for validation and for tests
     (use the different getters for the test or val metrics)"""
     rows = []
     dropped = []
@@ -322,7 +322,7 @@ def load_compare_items(
     return items
 
 def aggregate_psml_summary(summary: dict[str, Any]) -> dict[str, Any]:
-    
+
     """
     Input format (from the summary.json):
       year -> dim -> {locs, RMSE, MAE, MAPE, MSIS}

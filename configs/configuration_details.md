@@ -13,7 +13,7 @@ For each configured benchmark model, a reference directory is created containing
 ### benchmark
 - repo_root: Path to root of the benchmark
 - workdir: Path to the directory with the model implementations
-- logs_root: Path to the run logs 
+- logs_root: Path to the run logs
 - conda_env: The name of the conda environment in which the psml submodule is installed
 
 ### references

@@ -24,10 +24,10 @@ ComplexInitializationMethod = Literal[
     "split_leakyrelu_xavier_normal",
     "split_leakyrelu_xavier_uniform"
 ]
-    
+
 class ComplexLinear(nn.Module):
     """
-    Complex-valued linear layer using real/imag split. 
+    Complex-valued linear layer using real/imag split.
 
     Input:
         xr, xi: [B, in_features]
@@ -81,7 +81,7 @@ class ComplexLinear(nn.Module):
         if xr.ndim != 2:
             raise ValueError(f"ComplexLinear expects [B, D], got {xr.shape}")
         # result from the complex matrix multiplication zX = x_rW_r - x_iW_i + i(x_iW_r + x_rW_i) so we get a real y_r and img y_i
-        yr = F.linear(xr, self.weight_real, self.bias_real) - F.linear(xi, self.weight_imag, None) 
+        yr = F.linear(xr, self.weight_real, self.bias_real) - F.linear(xi, self.weight_imag, None)
         yi = F.linear(xr, self.weight_imag, self.bias_imag) + F.linear(xi, self.weight_real, None)
         return yr, yi
 
@@ -251,5 +251,3 @@ class ComplexSTLFMLP(nn.Module):
 
         out = self.readout(xr, xi)
         return out
-
-

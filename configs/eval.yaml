@@ -3,9 +3,9 @@ eval:
   overwrite: true
 
   val:
-    metrics: ["mae", "rmse", "me"]  
+    metrics: ["mae", "rmse", "me"]
     per_dim: true
-    
+
     sweep_analysis_enabled: true
     include_incomplete: false
     compare_enabled: false
@@ -22,17 +22,17 @@ eval:
       - name: "MLP faster"
         sweep: "../runs/mlp_sweep_faster"
         use_best_run: true
-        
+
       - name: "One bad run"
         path: "../runs/mlp_sweep_fast/id_001/evaluation/aggregate_val.json"
-      
+
 
   test:
     prediction_interval: 0.95
 
     references_root: "references/psml_forecasting"
-    include_current_run: true   
-    
+    include_current_run: true
+
     compare:
       #- name: "ours:mlp_quick_test"
       #  path: "../runs/mlp_quick_test/id_002/evaluation/test/summary.json"
@@ -49,4 +49,4 @@ eval:
       - name: "ref:rnn_ref_v1"
         path: "../references/psml_forecasting/rnn_ref_v1/summary.json"
       - name: "ref:tcn_ref_v1"
-        path: "../references/psml_forecasting/tcn_ref_v1/summary.json"       
+        path: "../references/psml_forecasting/tcn_ref_v1/summary.json"

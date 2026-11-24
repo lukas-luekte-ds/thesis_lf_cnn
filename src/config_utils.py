@@ -32,11 +32,11 @@ def to_set_args(values: dict[str, Any]) -> list[str]:
 
     return args
 
-def save_config_used(run_cfg: dict, 
-                     run_dir: str, 
-                    source_train_cfg_path: str, 
-                    source_model_cfg_path: str | None, 
-                    overrides: list[str] | None = None, 
+def save_config_used(run_cfg: dict,
+                     run_dir: str,
+                    source_train_cfg_path: str,
+                    source_model_cfg_path: str | None,
+                    overrides: list[str] | None = None,
                     run_id: str | None = None):
     cfg_used = deepcopy(run_cfg)
     cfg_used.setdefault("meta", {})

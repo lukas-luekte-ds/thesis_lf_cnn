@@ -105,5 +105,3 @@ def git_hash() -> str:
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "unknown"
-
-

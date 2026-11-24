@@ -112,7 +112,7 @@ class CustomForecastDataset(Dataset):
         target_mask = torch.ones_like(y, dtype=torch.float32)
 
         return x, y, target_mask
-    
+
 
 
 class CustomTimeSeriesLoader:
@@ -142,7 +142,7 @@ class CustomTimeSeriesLoader:
 
         root = Path(self.data_config["root"])
         return root / "custom_processed" / cache_name
-    
+
 
     def __init__(self, data_config):
         self.data_config = data_config
@@ -217,7 +217,7 @@ class CustomTimeSeriesLoader:
                     f"Expected format example: "
                     f"'2018-01-01 00:00:00'"
                 )
-    
+
     def _save_zone_cache(self, train_arrays_by_zone, test_arrays_by_zone):
         cache_dir = self._cache_dir()
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +242,7 @@ class CustomTimeSeriesLoader:
             f.write("\n".join(manifest_lines))
 
         print(f"Saved zone cache to: {cache_dir}")
-    
+
     def _load_zone_cache_as_datasets(self):
         cache_dir = self._cache_dir()
 
@@ -331,7 +331,7 @@ class CustomTimeSeriesLoader:
         )
 
         return train_loader_full, test_loader
-    
+
     def _read_zone_dataframes(self):
         source_cfg = self.cfg["source"]
 
@@ -345,7 +345,7 @@ class CustomTimeSeriesLoader:
 
         df = self._read_raw_data()
         return [("single_source", df)]
-    
+
     def _read_single_zone_file(self, source_cfg, file_cfg):
         root = self.data_config["root"]
 
@@ -479,7 +479,7 @@ class CustomTimeSeriesLoader:
     def _build_split_dataset(self, df, feature_cols, target_cols):
         arrays = self._build_split_arrays(df, feature_cols, target_cols)
         return self._dataset_from_arrays(arrays)
-    
+
     def _build_split_arrays(self, df, feature_cols, target_cols):
         df = df.copy()
 
@@ -527,7 +527,7 @@ class CustomTimeSeriesLoader:
         valid_mask = ((all_indices - offset) % prediction_stride) == 0
 
         return all_indices[valid_mask]
-    
+
     def _read_extra_source(self, source_cfg):
         root = self.data_config["root"]
 
@@ -596,7 +596,7 @@ class CustomTimeSeriesLoader:
             df = df.rename(columns=rename_map)
 
         return df
-    
+
     def _merge_extra_sources(self, main_df):
         extra_sources = self.cfg.get("extra_sources", [])
         if not extra_sources:
@@ -626,4 +626,3 @@ class CustomTimeSeriesLoader:
                 df = df.merge(extra_df, on="timestamp", how=merge_method)
 
         return df
-    

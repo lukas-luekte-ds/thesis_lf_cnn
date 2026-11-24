@@ -163,7 +163,7 @@ def create_complex_activation(
             num_features=num_features,
             bias_init=-0.1,
         )
-    
+
     if activation == "cardioid":
         return Cardioid()
 
@@ -176,7 +176,7 @@ def initialize_complex_weights(
     weight_imag: torch.Tensor,
     fan_in: int,
     fan_out: int,
-    initialization: dict, 
+    initialization: dict,
 ) -> None:
     method = initialization["method"]
 
@@ -187,14 +187,14 @@ def initialize_complex_weights(
         )
     elif method == "split_relu_he_normal":
         init_split_relu_he_normal(
-            weight_real, 
-            weight_imag, 
+            weight_real,
+            weight_imag,
             fan_in
         )
     elif method == "split_relu_he_uniform":
         init_split_relu_he_uniform(
-            weight_real, 
-            weight_imag, 
+            weight_real,
+            weight_imag,
             fan_in
         )
     elif method == "split_leakyrelu_he_normal":
@@ -372,6 +372,3 @@ def init_split_leakyrelu_xavier_uniform(
 
     nn.init.uniform_(weight_real, -bound, bound)
     nn.init.uniform_(weight_imag, -bound, bound)
-
-
-

@@ -48,7 +48,7 @@ class ComplexLinear(nn.Module):
         )
 
         return torch.complex(yr, yi)
-    
+
 class ComplexLSTMCell(nn.Module):
     def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
@@ -98,7 +98,7 @@ class ComplexLSTMCell(nn.Module):
         h_t = o_t * torch.tanh(c_t)
 
         return h_t, c_t
-    
+
 class ComplexLSTM(nn.Module):
     def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
@@ -121,7 +121,7 @@ class ComplexLSTM(nn.Module):
 
         outputs = torch.stack(outputs, dim=1)  # (batch, seq_len, hidden_size)
         return outputs, (h, c)
-    
+
 class ComplexLSTMForecast(nn.Module):
     """
     Many-to-one complex-valued LSTM for forecasting.

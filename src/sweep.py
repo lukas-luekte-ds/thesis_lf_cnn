@@ -7,7 +7,7 @@ from config_utils import to_set_args, validate_sweep_config
 from utils import load_config
 
 """
-Hyperparameter sweep launcher which randomly trains different 
+Hyperparameter sweep launcher which randomly trains different
 hyperparameter configurations (used for hyperparameter tuning).
 
 This script does not train a model itself. Instead, it repeatedly starts

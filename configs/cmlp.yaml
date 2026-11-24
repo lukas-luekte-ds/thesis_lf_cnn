@@ -9,6 +9,6 @@ model:
     use_layernorm: true
     use_input_norm: true
     activation: modrelu
-    initialization: 
+    initialization:
       method: componentwise_pytorch_default # componentwise_pytorch_default
       negative_slope: 0.01 # for leakyRelu activation only

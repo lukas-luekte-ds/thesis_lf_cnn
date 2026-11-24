@@ -39,10 +39,10 @@ parameters:
       - [128, 128]
       - [256, 256]
       - [256, 128]
-      - [64, 64, 64] 
+      - [64, 64, 64]
       - [256, 256, 256]
       - [512, 256, 128]
-      - [256, 256, 128, 64]    
+      - [256, 256, 128, 64]
 
 optuna:
   n_runs: 50
@@ -50,4 +50,4 @@ optuna:
   storage: runs/mlp_tpe.db
   import_dir: runs/mlp_sweep
   output_root: runs
-  exp_name: mlp_tpe 
+  exp_name: mlp_tpe

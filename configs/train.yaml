@@ -22,7 +22,7 @@ data:
   batch_size: 128
   shuffle: false
   val_ratio: 0.1
-  
+
   benchmark_loader:
     include_grids: ["CAISO", "ERCOT"] #, "MISO", "NYISO", "PJM"] #["CAISO", "ERCOT"]
     include_years: [2018, 2019, 2020] #[2018, 2019, 2020]
@@ -103,8 +103,8 @@ data:
 
       input_length: 120
       prediction_stride: 60
-      # global setting for horizon_steps is only used if the targets have no individual horizon_steps 
-      # horizon_steps: 60 
+      # global setting for horizon_steps is only used if the targets have no individual horizon_steps
+      # horizon_steps: 60
 
     split:
       train_start: "2018-01-01 00:00:00"
@@ -114,5 +114,3 @@ data:
 
     preprocessing:
       dropna_features: true
-
-

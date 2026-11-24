@@ -42,7 +42,7 @@ def list_run_dirs(exp_or_run_dir: Path) -> list[Path]:
         if sub.is_dir() and (sub / "config_used.yaml").exists():
             runs.append(sub)
 
-    runs.sort(key=lambda x: x.stat().st_mtime, reverse=False)  
+    runs.sort(key=lambda x: x.stat().st_mtime, reverse=False)
     return runs
 
 def collect_val_run_dirs(sources: list[Path]) -> list[Path]:

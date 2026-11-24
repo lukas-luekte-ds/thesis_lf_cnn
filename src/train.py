@@ -39,7 +39,7 @@ def parse_args():
     #args, _ = ap.parse_known_args()
 
     args = ap.parse_args()
-    
+
     # making the arg parsed config path robust
     cfg_path = Path(args.config).expanduser().resolve()
     if not cfg_path.exists():
@@ -121,11 +121,11 @@ def main(cfg_path, overrides=None, run_id=None):
     exp_root = os.path.join(cfg_used["out"]["dir"], cfg_used["exp_name"])
     if run_id is None:
         run_id = make_run_id(exp_root)
-    
+
     exp_dir = os.path.join(exp_root, run_id)
     if os.path.exists(exp_dir):
         raise FileExistsError(f"Run directory already exists: {exp_dir}")
-    
+
     ensure_dir(exp_dir)
     save_config_used(cfg_used, exp_dir, source_train_cfg_path=cfg_path, source_model_cfg_path=model_ref, overrides=overrides, run_id=run_id)
 
@@ -201,7 +201,7 @@ def main(cfg_path, overrides=None, run_id=None):
         ensure_dir(zone_dir)
         ckpt_dir = os.path.join(zone_dir, "checkpoints")
         ensure_dir(ckpt_dir)
- 
+
         # 4.2 Load train/test data
         if loader_type == "benchmark":
             train_loader_full, test_loader = loader.load(
@@ -216,7 +216,7 @@ def main(cfg_path, overrides=None, run_id=None):
                 batch_size=cfg_used["data"]["batch_size"],
                 shuffle=cfg_used["data"]["shuffle"]
             )
-            
+
         # 4.3 Create chronological train/validation split
         # split a val from training set (makeing sure it is chronological)
         full_ds = train_loader_full.dataset
@@ -235,7 +235,7 @@ def main(cfg_path, overrides=None, run_id=None):
                             batch_size=cfg_used["data"]["batch_size"],
                             shuffle=False,
                             drop_last=False)
-        
+
         # 4.4 Infer model input/output dimensions for custom loader
         if loader_type == "custom":
             x_example, y_example, _ = next(iter(train_loader_full))
@@ -272,7 +272,7 @@ def main(cfg_path, overrides=None, run_id=None):
         p.numel() for p in model.parameters() if p.requires_grad
 )
 
-        
+
         # using this only for training data to improve training but NEVER on val or test, input normalizer active is prob always the best option so I remains active
         # 4.6 Fit optional input normalizer on training data only
         if hasattr(model, "fit_input_normalizer_from_loader"):

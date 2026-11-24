@@ -15,7 +15,7 @@ def eval_mae(model, loader, device):
             raise ValueError(
                 f"eval_mae shape mismatch: pred.shape={tuple(p.shape)}, y.shape={tuple(y.shape)}"
             )
-                
+
         preds.append(p.cpu().numpy())
         trues.append(y.cpu().numpy())
     P = np.concatenate(preds, 0)

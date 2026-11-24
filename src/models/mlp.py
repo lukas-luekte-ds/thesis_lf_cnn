@@ -67,7 +67,7 @@ class STLFMLP(nn.Module):
             raise ValueError(
                 f"STLFMLP expects input with shape [B, D] or [B, T, F], got {tuple(x.shape)}"
             )
-        
+
 
     def _check_input_dim(self, x: torch.Tensor):
         if x.shape[1] != self.input_dim:
@@ -76,7 +76,7 @@ class STLFMLP(nn.Module):
                 f"but got flattened input shape {tuple(x.shape)}. "
                 f"Check your dataloader output and model config."
             )
-        
+
     @torch.no_grad()
     def fit_input_normalizer_from_loader(self, loader):
         """

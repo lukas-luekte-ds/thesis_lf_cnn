@@ -12,13 +12,13 @@ SWEEP_CONFIG ?=
 TPE_CONFIG ?=
 SWEEP_ARGS   ?=
 
-# Matplotlib headless (to enable terminal only setups), setting deterministic cuda kernels 
+# Matplotlib headless (to enable terminal only setups), setting deterministic cuda kernels
 export MPLBACKEND=Agg
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 export PYTHONUNBUFFERED=1
 
 .PHONY: help env submodules install-baselines install-core install \
-        verify-env train eval sweep  prune-sweep-dry prune-sweep refs get-refs \ 
+        verify-env train eval sweep  prune-sweep-dry prune-sweep refs get-refs \
 		freeze export-env remove-artifacts veryclean sweep-tpe
 
 help:
@@ -74,7 +74,7 @@ verify-env:
 	print("Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU")
 	PY
 
-# base 
+# base
 train:
 	conda run -n $(ENV_MAIN) --no-capture-output $(PYTHON) src/train.py --config $(CONFIG)
 
