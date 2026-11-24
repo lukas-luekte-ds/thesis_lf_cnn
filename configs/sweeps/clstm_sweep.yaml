@@ -1,0 +1,45 @@
+run:
+  n_runs: 1
+  prune_name: clstm_sweep_test
+  train_config: configs/train.yaml
+  overrides:
+    model.name: clstm
+
+fixed:
+  seed: 0
+  train.huber_delta: 1.0
+
+parameters:
+  train.lr:
+    values: [0.0001, 0.001, 0.01,]
+
+  train.weight_decay:
+    values: [0.0, 0.0001, 0.001, 0.01]
+
+  train.loss_type:
+    values: ["mae", "mse", "huber"]
+
+  train.optimizer:
+    values: ["adam", "adamw"]
+
+  model.kwargs.dropout:
+    values: [0.0, 0.3, 0.5] 
+
+  model.kwargs.hidden_sizes:
+    values:
+      - [64]
+      - [128]
+      - [256]
+      - [128, 128]
+      - [256, 256]
+      - [256, 128]
+      - [64, 64, 64] 
+      - [256, 256, 256]
+
+optuna:
+  n_runs: 50
+  study_name: clstm_tpe
+  storage: runs/clstm_tpe.db
+  import_dir: runs/clstm_sweep
+  output_root: runs
+  exp_name: clstm_tpe 

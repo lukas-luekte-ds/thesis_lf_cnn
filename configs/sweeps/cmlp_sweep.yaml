@@ -1,0 +1,76 @@
+run:
+  n_runs: 300
+  prune_name: cmlp_sweep # is only used for pruning
+  train_config: configs/train.yaml
+  overrides:
+    model.name: cmlp
+
+fixed:
+  seed: 0
+  train.huber_delta: 1.0
+
+parameters:
+  train.lr:
+    values: [0.0001, 0.001, 0.01]
+
+  train.weight_decay:
+    values: [0.0, 0.0001, 0.001, 0.01]
+
+  model.kwargs.dropout:
+    values: [0.0, 0.3, 0.5]
+
+  model.kwargs.use_layernorm:
+    values: [true, false]
+
+  train.loss_type:
+    values: ["mae", "mse", "huber"]
+
+  train.optimizer:
+    values: ["adam", "adamw"]
+
+  model.kwargs.activation:
+    values: 
+      - gelu
+      - relu
+      - leakyrelu
+      - tanh
+      - fully_complex_tanh
+      - modrelu
+      - cardioid
+
+  model.kwargs.initialization:
+    values:
+      - method: componentwise_pytorch_default 
+      - method: split_relu_he_normal
+      - method: split_relu_he_uniform 
+      - method: split_leakyrelu_he_normal 
+        negative_slope: 0.01
+      - method: split_leakyrelu_he_uniform
+        negative_slope: 0.01
+      - method: split_relu_xavier_normal 
+      - method: split_relu_xavier_uniform 
+      - method: split_leakyrelu_xavier_normal 
+        negative_slope: 0.01
+      - method: split_leakyrelu_xavier_uniform
+        negative_slope: 0.01
+
+  model.kwargs.hidden_sizes:
+    values:
+      - [64]
+      - [128]
+      - [256]
+      - [128, 128]
+      - [256, 256]
+      - [256, 128]
+      - [64, 64, 64] 
+      - [256, 256, 256]
+      - [512, 256, 128]
+      - [256, 256, 128, 64]     
+
+optuna:
+  n_runs: 50
+  study_name: cmlp_tpe
+  storage: runs/cmlp_tpe.db
+  import_dir: runs/cmlp_sweep
+  output_root: runs
+  exp_name: cmlp_tpe 
