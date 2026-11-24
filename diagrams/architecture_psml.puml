@@ -1,5 +1,5 @@
-@startuml name architecture
-title dataloader architecture
+@startuml name architecture_psml
+title dataloader architecture psml
 
 package "BenchmarkModel.LoadForecasting.processing" {
     class ForecastingDataset

@@ -1,0 +1,89 @@
+@startuml custom_dataloader
+
+start
+
+:CustomTimeSeriesLoader(data_config);
+:Save data_config;
+:Extract custom_loader config;
+:validate_config();
+
+:load(batch_size, shuffle);
+
+:Read cache settings;
+
+if (use cache AND manifest exists AND not rebuild?) then (yes)
+    :Load zone cache;
+    :Read manifest.txt;
+
+    repeat
+        :Load train X/y/indices;
+        :Load test X/y/indices;
+        :Create train CustomForecastDataset;
+        :Create test CustomForecastDataset;
+    repeat while (cached zones left?)
+
+else (no)
+    :Read zone dataframes from source.files or file_name;
+
+    repeat
+        :Process one zone dataframe;
+
+        :Filter years;
+        :Merge extra sources / PMU by timestamp;
+        :Add time features;
+
+        :Build feature_cols and target_cols;
+
+        :Split dataframe into train_df and test_df;
+
+        :Build train arrays;
+        note right
+          X_train: [N_train, F]
+          y_train: [N_train, n_targets]
+          indices_train: [M_train]
+        end note
+
+        :Build test arrays;
+        note right
+          X_test: [N_test, F]
+          y_test: [N_test, n_targets]
+          indices_test: [M_test]
+        end note
+
+        :Create train CustomForecastDataset;
+        :Create test CustomForecastDataset;
+
+        if (cache enabled?) then (yes)
+            :Store arrays for cache;
+        endif
+
+    repeat while (zones left?)
+
+    if (cache enabled?) then (yes)
+        :Save zone cache;
+        :Write .npy files;
+        :Write manifest.txt;
+    endif
+endif
+
+:Concat train zone datasets;
+note right
+  No merge across zones.
+  Datasets are appended.
+end note
+
+:Concat test zone datasets;
+
+:Create train DataLoader;
+note right
+  batch x: [B, T, F]
+  batch y: [B, n_targets]
+end note
+
+:Create test DataLoader;
+
+:return train_loader_full, test_loader;
+
+stop
+
+@enduml

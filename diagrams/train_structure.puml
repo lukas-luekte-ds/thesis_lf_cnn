@@ -1,0 +1,86 @@
+@startuml train
+
+start
+
+:parse_args();
+
+:load train config;
+:load model config via model_ref;
+:deep_merge train + model config;
+:apply CLI overrides;
+
+:fix_seed();
+:get_device();
+
+:Create experiment directory;
+:save config_used.yaml;
+:Create zones directory;
+
+:Read loader_type;
+
+if (loader_type?) then (benchmark)
+    :Find processed CSV files;
+    :Filter grids / years / zones;
+    :Create TimeSeriesLoader;
+    :run_units = measured_zones;
+else (custom)
+    :Create CustomTimeSeriesLoader;
+    :run_units = custom_run/all;
+endif
+
+repeat
+    :Create zone/run-unit directory;
+    :Create checkpoint directory;
+
+    if (loader_type?) then (benchmark)
+        :loader.load(loc, year);
+    else (custom)
+        :loader.load();
+    endif
+
+    :Get full training dataset;
+    :Chronological train/val split;
+    :Create train_loader;
+    :Create val_loader;
+
+    if (custom loader?) then (yes)
+        :Get example batch;
+        :Infer input_dim and out_dim;
+        :Write dims into model kwargs;
+    endif
+
+    :Instantiate model from module/class config;
+
+    if (model has input normalizer?) then (yes)
+        :Fit input normalizer on train_loader;
+    endif
+
+    :train_loop();
+    :Load best-val checkpoint;
+    :model.eval();
+
+    if (loader_type?) then (benchmark)
+        :Predict test batches with IDs;
+        :Build benchmark preds_df;
+    else (custom)
+        :Predict test batches;
+        :Collect targets;
+        :Build custom preds_df;
+    endif
+
+    :Save preds.csv;
+
+    :Compute val MAE per target;
+    :Save metrics.json;
+    :Save learning_curve.png;
+
+    :Append result to zone_results;
+
+repeat while (run_units left?)
+
+:Aggregate metrics over run_units;
+:Save metrics_aggregate.json;
+
+stop
+
+@enduml

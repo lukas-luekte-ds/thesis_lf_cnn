@@ -1,0 +1,34 @@
+@startuml name architecture_overview
+skinparam componentStyle rectangle
+
+package "Entry Points" {
+  [sweep.py]
+  [train.py]
+}
+
+package "Configuration" {
+  [configs/train.yaml]
+  [configs/sweeps/model_config.yaml]
+}
+
+package "Data Loading" {
+  [CustomTimeSeriesLoader]
+  [CustomForecastDataset]
+}
+
+package "Training" {
+  [Model]
+  [Loss]
+  [Optimizer]
+}
+
+[configs/train.yaml] --> [train.py]
+[configs/sweeps/model_config.yaml] --> [sweep.py]
+[sweep.py] --> [train.py]
+[train.py] --> [CustomTimeSeriesLoader]
+[CustomTimeSeriesLoader] --> [CustomForecastDataset]
+[train.py] --> [Model]
+[train.py] --> [Loss]
+[train.py] --> [Optimizer]
+
+@enduml

@@ -1,0 +1,25 @@
+@startuml sweeper
+
+start
+
+:parse_args();
+:load_sweep_config();
+:Create RNG;
+:Read run settings;
+
+repeat
+    :sample_cfg();
+    :to_set_args();
+    :Build CLI command;
+
+    if (dry?) then (yes)
+        :Print only;
+    else (no)
+        :subprocess.run();
+    endif
+
+repeat while (runs left?)
+
+stop
+
+@enduml
