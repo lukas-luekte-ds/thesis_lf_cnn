@@ -1,5 +1,12 @@
 schema_version: 1
 reference_id: tcn_ref_v1
-created_at_utc: '2026-02-03T19:23:33Z'
-benchmark_commit: 2726ffcac0f41a796f3ca86a8517a73244dff5fd
-picked_version_dir: version_3
+created_at_utc: '2026-08-20T17:03:26Z'
+benchmark_commit: 7c6ed573c72a2fa05f62f7f1c557d7a7ade66bdc
+picked_version_dir: version_16
+num_params_million: null
+num_params_approx: null
+num_params_candidates_million: 7.607,8.039
+num_params_source: null
+num_params_approximate: null
+benchmark_runtime_seconds: 5838.291293414
+runtime_scope: full_benchmark_command

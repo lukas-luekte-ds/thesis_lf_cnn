@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
 import argparse
 import datetime as dt
 import shutil
 import subprocess
 from pathlib import Path
-
 import yaml
 
 def utc_now_iso() -> str:
@@ -23,15 +21,47 @@ def run_cmd_capture(cmd: list[str], cwd: Path) -> str:
 def git_commit(repo_root: Path) -> str:
     return run_cmd_capture(["git", "rev-parse", "HEAD"], cwd=repo_root)
 
-def write_meta(meta_path: Path, reference_id: str, benchmark_commit_hash: str, picked_version_dir: str) -> None:
+def write_meta(
+    meta_path: Path,
+    reference_id: str,
+    benchmark_commit_hash: str,
+    picked_version_dir: str,
+    num_params_million: float | None,
+    num_params_approx: int | None,
+    num_params_candidates,
+    benchmark_runtime_seconds: float | None,
+) -> None:
     meta = {
         "schema_version": 1,
         "reference_id": reference_id,
         "created_at_utc": utc_now_iso(),
         "benchmark_commit": benchmark_commit_hash,
         "picked_version_dir": picked_version_dir,
+
+        "num_params_million": num_params_million,
+        "num_params_approx": num_params_approx,
+        "num_params_candidates_million": num_params_candidates,
+        "num_params_source": (
+            "benchmark_stdout"
+            if num_params_approx is not None
+            else None
+        ),
+        "num_params_approximate": (
+            True if num_params_approx is not None else None
+        ),
+
+        "benchmark_runtime_seconds": benchmark_runtime_seconds,
+        "runtime_scope": (
+            "full_benchmark_command"
+            if benchmark_runtime_seconds is not None
+            else None
+        ),
     }
-    meta_path.write_text(yaml.safe_dump(meta, sort_keys=False), encoding="utf-8")
+
+    meta_path.write_text(
+        yaml.safe_dump(meta, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 def main() -> int:
@@ -41,7 +71,16 @@ def main() -> int:
     ap.add_argument("--out-root", required=True, help="Output root, e.g. references/psml_forecasting")
     ap.add_argument("--benchmark-repo-root", required=True, help="Repo root of the benchmark submodule")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing reference folder")
+    ap.add_argument("--num-params-million", type=float, default=None)
+    ap.add_argument("--num-params-approx", type=int, default=None)
+    ap.add_argument("--num-params-candidates", default="")
+    ap.add_argument("--benchmark-runtime-seconds", type=float, default=None)
     args = ap.parse_args()
+
+    num_params_million = args.num_params_million
+    num_params_approx = args.num_params_approx
+    num_params_candidates = args.num_params_candidates
+    benchmark_runtime_seconds = args.benchmark_runtime_seconds
 
     reference_id = args.reference_id
     version_dir = Path(args.version_dir).expanduser().resolve()
@@ -90,6 +129,10 @@ def main() -> int:
         reference_id=reference_id,
         benchmark_commit_hash=commit_hash,
         picked_version_dir=version_dir.name,
+        num_params_million=num_params_million,
+        num_params_approx=num_params_approx,
+        num_params_candidates=num_params_candidates,
+        benchmark_runtime_seconds=benchmark_runtime_seconds,
     )
 
     print(f"OK: Frozen reference written to: {ref_dir}")

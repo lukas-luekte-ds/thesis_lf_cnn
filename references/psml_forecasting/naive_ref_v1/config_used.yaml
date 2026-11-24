@@ -2,7 +2,7 @@ exp_params:
   data_folder: /media/lll/T9/PSML/processed_dataset/forecasting
   last_version: 1
   prediction_interval: 0.95
-  prediction_path: ./../logs/naive/version_2
+  prediction_path: ./../logs/naive/version_8
   test_flag: false
 logging_params:
   name: naive

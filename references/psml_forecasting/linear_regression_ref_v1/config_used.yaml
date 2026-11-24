@@ -17,7 +17,7 @@ exp_params:
   - Temperature
   last_version: 16
   prediction_interval: 0.95
-  prediction_path: ./../logs/linear_regression/version_4
+  prediction_path: ./../logs/linear_regression/version_8
   selection_metric: RMSE
   sliding_window:
   - 120

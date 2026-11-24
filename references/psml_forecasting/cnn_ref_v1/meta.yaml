@@ -1,5 +1,11 @@
 schema_version: 1
 reference_id: cnn_ref_v1
-created_at_utc: '2026-02-02T18:53:30Z'
-benchmark_commit: 2726ffcac0f41a796f3ca86a8517a73244dff5fd
-picked_version_dir: version_2
+created_at_utc: '2026-08-14T20:47:34Z'
+benchmark_commit: 7c6ed573c72a2fa05f62f7f1c557d7a7ade66bdc
+picked_version_dir: version_18
+num_params_million: 0.345
+num_params_approx: 345000
+num_params_source: benchmark_stdout
+num_params_approximate: true
+benchmark_runtime_seconds: 2723.321199125001
+runtime_scope: full_benchmark_command

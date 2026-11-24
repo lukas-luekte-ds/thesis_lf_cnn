@@ -1,5 +1,11 @@
 schema_version: 1
 reference_id: gradient_boosting_ref_v1
-created_at_utc: '2026-02-05T07:15:00Z'
-benchmark_commit: 2726ffcac0f41a796f3ca86a8517a73244dff5fd
-picked_version_dir: version_4
+created_at_utc: '2026-08-15T18:42:32Z'
+benchmark_commit: 7c6ed573c72a2fa05f62f7f1c557d7a7ade66bdc
+picked_version_dir: version_8
+num_params_million: null
+num_params_approx: null
+num_params_source: null
+num_params_approximate: null
+benchmark_runtime_seconds: 71739.980590231
+runtime_scope: full_benchmark_command
