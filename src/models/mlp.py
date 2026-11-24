@@ -1,43 +1,28 @@
-# model.py
-from typing import List, Literal
+from typing import Literal
+
 import torch
-import torch.nn as nn
+from torch import nn
 
-class InputNormalizer(nn.Module):
-    """
-    normalization of the input parameters, the mean and std are saved in the register buffer
-    """
-    def __init__(self, dim: int, eps: float = 1e-8):
-        super().__init__()
-        self.register_buffer("mean", torch.zeros(dim))
-        self.register_buffer("std", torch.ones(dim))
-        self.eps = eps
+from normalization import InputNormalizer
 
-    @torch.no_grad()
-    def fit(self, x: torch.Tensor):
-        # imput x: [N, D] so the columns will be the different features
-        mean = x.mean(dim=0) # dim = 0 aggregate the lines columnwise
-        std = x.std(dim=0, unbiased=False).clamp_min(self.eps) # clamp_min to dodge division by 0 
-        self.mean.copy_(mean)
-        self.std.copy_(std)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - self.mean) / self.std
 
 class STLFMLP(nn.Module):
     
     def __init__(
         self,
         input_dim: int = 1331,
-        hidden_sizes: List[int] = [512, 256, 128],
+        hidden_sizes: list[int] | None = None,
         out_dim: int = 6,             # 6 targets
         dropout: float = 0.1,
         use_layernorm: bool = True,
         use_input_norm: bool = True,
         activation: Literal["gelu","relu","leakyrelu"] = "gelu",
     ):
+        if hidden_sizes is None:
+            hidden_sizes = [512, 256, 128]
         super().__init__()
         self.use_input_norm = use_input_norm
+        self.input_dim = input_dim
         if use_input_norm:
             self.in_norm = InputNormalizer(input_dim)
 
@@ -51,7 +36,7 @@ class STLFMLP(nn.Module):
         else:
             raise ValueError("Unsupported activation")
 
-        layers: List[nn.Module] = []
+        layers: list[nn.Module] = []
         dims = [input_dim] + list(hidden_sizes)
         for i in range(len(dims) - 1):
             layers.append(nn.Linear(dims[i], dims[i + 1]))
@@ -64,12 +49,34 @@ class STLFMLP(nn.Module):
         self.net = nn.Sequential(*layers)
 
         # for logging
-        self.target_names: List[str] = [
+        self.target_names: list[str] = [
             "yl_t+60", "yl_t+1440",
             "yw_t+5", "yw_t+30",
             "ys_t+5", "ys_t+30",
         ]
+    def _flatten_if_needed(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Accept [B, D] or [B, T, F] and return [B, D].
+        """
+        if x.ndim == 2:
+            return x
+        elif x.ndim == 3:
+            x = x.reshape(x.size(0), -1)
+            return x
+        else:
+            raise ValueError(
+                f"STLFMLP expects input with shape [B, D] or [B, T, F], got {tuple(x.shape)}"
+            )
+        
 
+    def _check_input_dim(self, x: torch.Tensor):
+        if x.shape[1] != self.input_dim:
+            raise ValueError(
+                f"Input dimension mismatch: model expects input_dim={self.input_dim}, "
+                f"but got flattened input shape {tuple(x.shape)}. "
+                f"Check your dataloader output and model config."
+            )
+        
     @torch.no_grad()
     def fit_input_normalizer_from_loader(self, loader):
         """
@@ -78,14 +85,23 @@ class STLFMLP(nn.Module):
         if not self.use_input_norm:
             return
         xs = []
+        device = self.in_norm.mean.device
+
         for batch in loader:
-            x = batch[0]
+            x = batch[0].to(device)
+            x = self._flatten_if_needed(x)
+            self._check_input_dim(x)
             xs.append(x)
-        X = torch.cat(xs, dim=0)
-        self.in_norm.fit(X.to(self.in_norm.mean.device))
+
+        X = torch.cat(xs, dim=0)  # [N, D]
+        self.in_norm.fit(X)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self._flatten_if_needed(x)
+        self._check_input_dim(x)
+
         if self.use_input_norm:
             x = self.in_norm(x)
+
         return self.net(x)
 

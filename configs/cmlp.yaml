@@ -1,0 +1,14 @@
+model:
+  module: models.cmlp
+  class: ComplexSTLFMLP
+  kwargs:
+    input_dim: 1331
+    hidden_sizes: [512, 256, 128]
+    out_dim: 6
+    dropout: 0.1
+    use_layernorm: true
+    use_input_norm: true
+    activation: modrelu
+    initialization: 
+      method: componentwise_pytorch_default # componentwise_pytorch_default
+      negative_slope: 0.01 # for leakyRelu activation only

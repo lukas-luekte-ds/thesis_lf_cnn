@@ -1,0 +1,13 @@
+model:
+  module: models.lstm
+  class: LSTMForecast
+  kwargs:
+    seq_len: 121
+    input_size: 11
+    hidden_sizes: [128, 64, 32]
+    dropout: 0.00
+    out_dim: 6
+    bidirectional: false
+    accept_flat_input: true
+    use_input_norm: true
+    use_last_timestep: true

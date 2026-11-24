@@ -1,0 +1,12 @@
+model:
+  module: models.clstm
+  class: ComplexLSTMForecast
+  kwargs:
+    seq_len: 121
+    input_size: 11
+    hidden_sizes: [64]
+    dropout: 0.0
+    out_dim: 6
+    accept_flat_input: true
+    use_input_norm: false # doesn't really work because of the complex tanh
+    use_last_timestep: true

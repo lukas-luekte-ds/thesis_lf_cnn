@@ -1,24 +1,118 @@
-exp_name: mlp_run2
+exp_name: lstm_tpe
 seed: 0
 device: cuda
+model_ref: configs/lstm.yaml
 
 out:
   dir: runs
 
-data:
-  root: /media/lll/T9/PSML
-  batch_size: 32
-  shuffle: false
-  val_ratio: 0.2
-
 train:
   epochs: 50
-  optimizer: adamw
-  lr: 0.001
+  optimizer: adamw #adam
+  lr: 0.0001
   weight_decay: 0.0
   early_stopping_patience: 10
-  early_stopping_min_delta: 0.0
+  early_stopping_min_delta: 0.0001
   loss_type: mae
   huber_delta: 1.0
 
-model_ref: configs/mlp.yaml
+data:
+  loader_type: benchmark # custom
+  root: /media/lll/T9/PSML
+  batch_size: 128
+  shuffle: false
+  val_ratio: 0.1
+  
+  benchmark_loader:
+    include_grids: ["CAISO", "ERCOT"] #, "MISO", "NYISO", "PJM"] #["CAISO", "ERCOT"]
+    include_years: [2018, 2019, 2020] #[2018, 2019, 2020]
+    include_zones: [1, 2, 3, 4, 5, 6, 7]
+
+  custom_loader:
+    cache:
+      enabled: true
+      name: "pmu_case0_3zones_2018"
+      rebuild: false
+    source:
+      subdir: Minute-level Load and Renewable
+      timestamp_col: time
+      files:
+      - name: "zone1"
+        file_name: "CAISO_zone_1_.csv"
+      - name: "zone2"
+        file_name: "CAISO_zone_2_.csv"
+      - name: "zone3"
+        file_name: "CAISO_zone_3_.csv"
+
+    extra_sources:
+      - name: "pmu_case_0"
+        file_name: "pf_result_0.csv"
+        subdir: "Minute-level PMU Measurements/case 0"
+        timestamp_col: "time"
+        columns: ["Vm_101", "Vm_102", "Q_14_16_1"]
+        prefix: true
+        # resample_rule: "1min"
+        agg: "mean"
+        merge_method: "left"     # oder "asof"
+        fillna: "none" # ffill
+
+    features:
+      target_as_input: true
+      external:
+        - DHI
+        - DNI
+        - GHI
+        - Dew Point
+        - Solar Zenith Angle
+        - Wind Speed
+        - Relative Humidity
+        - Temperature
+        #- pmu_case_0_Vm_101
+        #- pmu_case_0_Vm_102
+        #- pmu_case_0_Q_14_16_1
+      time_features:
+        - month
+        - dayofweek
+        - holiday
+
+    task:
+      targets:
+      - name: yl_t+60
+        column: load_power
+        horizon_steps: 60
+
+      - name: yl_t+1440
+        column: load_power
+        horizon_steps: 1440
+
+      - name: yw_t+5
+        column: wind_power
+        horizon_steps: 5
+
+      - name: yw_t+30
+        column: wind_power
+        horizon_steps: 30
+
+      - name: ys_t+5
+        column: solar_power
+        horizon_steps: 5
+
+      - name: ys_t+30
+        column: solar_power
+        horizon_steps: 30
+
+      input_length: 120
+      prediction_stride: 60
+      # global setting for horizon_steps is only used if the targets have no individual horizon_steps 
+      # horizon_steps: 60 
+
+    split:
+      train_start: "2018-01-01 00:00:00"
+      train_end: "2018-11-30 23:59:00"
+      test_start: "2018-12-01 00:00:00"
+      test_end: "2018-12-31 23:59:00"
+
+    preprocessing:
+      dropna_features: true
+
+
