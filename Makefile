@@ -40,7 +40,7 @@ help:
 	@echo "  make prune-sweep-dry   - show preds.csv files that would be removed"
 	@echo "  make prune-sweep       - remove preds.csv files from an evaluated sweep"
 	@echo "	 make get-refs 			- rebuild PSML benchmark references: (REFS_CONFIG = $(REFS_CONFIG))"
-	@echo "  make sweep-tpe         - run Optuna TPE sweep: CONFIG=configs/sweeps/mlp_tpe.yaml"
+	@echo "  make sweep-tpe         - run Optuna TPE sweep: TPE_CONFIG=configs/sweeps/mlp_sweep.yaml"
 
 # environment and installation
 env:
@@ -96,7 +96,7 @@ sweep:
 
 
 sweep-tpe:
-	@test -n "$(TPE_CONFIG)" || (echo "Error: Missing config. Example: make sweep-tpe TPE_CONFIG=configs/sweeps/mlp_tpe.yaml"; exit 1)
+	@test -n "$(TPE_CONFIG)" || (echo "Error: Missing config. Example: make sweep-tpe TPE_CONFIG=configs/sweeps/mlp_sweep.yaml"; exit 1)
 	conda run -n dl --no-capture-output python -u src/sweep_optuna.py \
 		--sweep_config $(TPE_CONFIG)
 
